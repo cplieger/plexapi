@@ -27,14 +27,15 @@ func (e *StatusError) Error() string {
 	return fmt.Sprintf("plex API %s %s: %s", e.Method, e.Path, e.Status)
 }
 
-// IsFatalStartup reports whether err represents a Plex failure that will not
-// self-heal and should fail startup loudly rather than retry quietly: a 4xx
-// StatusError other than 408 (request timeout) and 429 (rate limit). A 5xx,
-// a transport error, or any other error classifies as transient. This is the
-// shared startup classifier previously duplicated (with drift) across
-// consumers; TLS/certificate failures are transport errors and remain the
-// caller's concern.
-func IsFatalStartup(err error) bool {
+// IsConfigError reports whether err is a Plex response indicating a
+// configuration or authorization problem — a 4xx StatusError other than 408
+// (request timeout) and 429 (rate limit, retried transparently and
+// Retry-After-honored). Such a failure will not resolve without operator
+// action (a bad token, a wrong server), unlike a 5xx (Plex up but not
+// ready) or a transport error, both of which may clear on their own.
+// TLS/certificate failures surface as transport errors and remain the
+// caller's concern to classify.
+func IsConfigError(err error) bool {
 	var se *StatusError
 	if !errors.As(err, &se) {
 		return false

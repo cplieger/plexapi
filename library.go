@@ -22,7 +22,7 @@ func (c *Client) SectionItems(ctx context.Context, sectionKey RatingKey) ([]Item
 	if err := sectionKey.Validate(); err != nil {
 		return nil, err
 	}
-	return fetchMetadata[Item](ctx, c, "/library/sections/"+sectionKey.String()+"/all", maxListBodyBytes)
+	return fetchMetadata[Item](ctx, c, "/library/sections/"+sectionKey.String()+"/all", c.maxListBody)
 }
 
 // RecentlyAdded returns a section's items of the given metadata type added
@@ -38,7 +38,7 @@ func (c *Client) RecentlyAdded(ctx context.Context, sectionKey RatingKey, metada
 	}
 	path := fmt.Sprintf("/library/sections/%s/all?type=%d&sort=addedAt:desc&addedAt>=%d",
 		sectionKey.String(), metadataType, sinceUnix)
-	return fetchMetadata[Item](ctx, c, path, maxListBodyBytes)
+	return fetchMetadata[Item](ctx, c, path, c.maxListBody)
 }
 
 // Metadata fetches one library item by rating key. The endpoint is
@@ -72,7 +72,7 @@ func (c *Client) metadataList(ctx context.Context, key RatingKey, suffix string)
 	if err := key.Validate(); err != nil {
 		return nil, err
 	}
-	return fetchMetadata[Item](ctx, c, "/library/metadata/"+key.String()+suffix, maxBodyBytes)
+	return fetchMetadata[Item](ctx, c, "/library/metadata/"+key.String()+suffix, c.maxBody)
 }
 
 // ItemExists reports whether the rating key currently addresses an item:
@@ -84,7 +84,7 @@ func (c *Client) ItemExists(ctx context.Context, key RatingKey) (bool, error) {
 	if err := key.Validate(); err != nil {
 		return false, err
 	}
-	err := c.do(ctx, http.MethodGet, "/library/metadata/"+key.String(), maxBodyBytes, nil)
+	err := c.do(ctx, http.MethodGet, "/library/metadata/"+key.String(), c.maxBody, nil)
 	switch {
 	case err == nil:
 		return true, nil
@@ -102,7 +102,7 @@ func (c *Client) ItemsByGUID(ctx context.Context, guid string) ([]Item, error) {
 	if guid == "" {
 		return nil, nil
 	}
-	return fetchMetadata[Item](ctx, c, "/library/all?"+url.Values{"guid": {guid}}.Encode(), maxBodyBytes)
+	return fetchMetadata[Item](ctx, c, "/library/all?"+url.Values{"guid": {guid}}.Encode(), c.maxBody)
 }
 
 // ShowForEpisodeGUID resolves an episode GUID to the rating key of the show

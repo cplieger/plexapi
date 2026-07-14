@@ -68,7 +68,7 @@ func (r RatingKey) String() string { return string(r) }
 // Validate reports whether the key is a non-empty numeric string. Plex
 // rating keys are always numeric in practice; anything else indicates a
 // programming error (a foreign identifier in a rating-key slot) that must
-// not reach URL construction.
+// not reach URL construction. The error names the offending value.
 func (r RatingKey) Validate() error {
 	if _, err := strconv.Atoi(string(r)); err != nil {
 		return fmt.Errorf("invalid rating key %q", string(r))
