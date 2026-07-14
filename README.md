@@ -3,7 +3,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/cplieger/plexapi.svg)](https://pkg.go.dev/github.com/cplieger/plexapi)
 [![Go version](https://img.shields.io/github/go-mod/go-version/cplieger/plexapi)](https://github.com/cplieger/plexapi/blob/main/go.mod)
 [![Test coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/cplieger/plexapi/badges/coverage.json)](https://github.com/cplieger/plexapi/actions/workflows/coverage.yml)
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/PROJECT_ID/badge)](https://www.bestpractices.dev/projects/PROJECT_ID)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13605/badge)](https://www.bestpractices.dev/projects/13605)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/cplieger/plexapi/badge)](https://scorecard.dev/viewer/?uri=github.com/cplieger/plexapi)
 
 > Typed, resilient Go client for the Plex Media Server HTTP API
