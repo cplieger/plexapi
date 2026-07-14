@@ -61,10 +61,8 @@ func NewTV(token string, opts ...TVOption) *TV {
 		token: token,
 		base:  plexTVBase,
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-			CheckRedirect: func(*http.Request, []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
+			Timeout:       30 * time.Second,
+			CheckRedirect: httpx.RefuseAllRedirects,
 		},
 	}
 	for _, opt := range opts {
@@ -88,7 +86,7 @@ func (t *TV) SharedServers(ctx context.Context, machineIdentifier string) ([]Sha
 
 	resp, err := t.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("plex.tv shared_servers: %w", redactedTransportErr(err))
+		return nil, fmt.Errorf("plex.tv shared_servers: %w", httpx.LogSafeError(err))
 	}
 	defer resp.Body.Close()
 

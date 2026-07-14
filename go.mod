@@ -2,7 +2,7 @@ module github.com/cplieger/plexapi
 
 go 1.26.5
 
-require github.com/cplieger/httpx/v2 v2.4.0
+require github.com/cplieger/httpx/v2 v2.5.0
 
 // v1.0.0 shipped same-day API that v1.1.0 reshapes: IsFatalStartup was
 // renamed IsConfigError and the read caps became configurable options.

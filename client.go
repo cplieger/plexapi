@@ -227,11 +227,11 @@ func newHTTPClient(o *options) (*http.Client, error) {
 		}
 		base = tr
 	} else {
-		dt, ok := http.DefaultTransport.(*http.Transport)
-		if !ok {
-			return nil, errors.New("http.DefaultTransport is not *http.Transport; cannot clone base transport")
+		dt, err := httpx.CloneDefaultTransport()
+		if err != nil {
+			return nil, fmt.Errorf("building base transport: %w", err)
 		}
-		base = dt.Clone()
+		base = dt
 	}
 	base.ResponseHeaderTimeout = perAttemptHeaderTimeout
 
@@ -247,9 +247,7 @@ func newHTTPClient(o *options) (*http.Client, error) {
 		// Plex's API does not issue redirects; refuse to follow any. Go's
 		// default policy forwards custom headers (X-Plex-Token included) on
 		// cross-origin redirects — a hostile 302 would exfiltrate the token.
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+		CheckRedirect: httpx.RefuseAllRedirects,
 	}, nil
 }
 
@@ -325,7 +323,10 @@ func (c *Client) do(ctx context.Context, method, path string, maxBytes int64, re
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("plex %s %s: %w", method, path, redactedTransportErr(err))
+		// LogSafeError strips the URL a *url.Error embeds (defense in depth:
+		// the URL never carries the token, and the reduced form keeps error
+		// strings stable for log grammars).
+		return fmt.Errorf("plex %s %s: %w", method, path, httpx.LogSafeError(err))
 	}
 	defer resp.Body.Close()
 
@@ -363,17 +364,6 @@ func (c *Client) do(ctx context.Context, method, path string, maxBytes int64, re
 		return fmt.Errorf("plex %s %s: decoding response: %w", method, path, err)
 	}
 	return nil
-}
-
-// redactedTransportErr strips the full URL a *url.Error embeds (defense in
-// depth: the URL never carries the token, but the reduced form also keeps
-// error strings stable for log grammars).
-func redactedTransportErr(err error) error {
-	var ue *url.Error
-	if errors.As(err, &ue) {
-		return ue.Err
-	}
-	return err
 }
 
 // Get fetches a server-relative path and decodes the JSON response into
