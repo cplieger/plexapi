@@ -89,13 +89,13 @@ The token grants full server access; the client defends it on every request:
   retryable error instead of hanging the sequence; a per-request default
   timeout (`WithTimeout`, default 2m) applies only when the caller's context
   has no deadline, so a caller deadline is always the authoritative budget.
-- Response bodies are size-capped before decode (10 MB; 40 MB for full
-  section listings), with overflow reported as `*ResponseTooLargeError`
-  rather than a truncated decode.
+- Response bodies are size-capped before decode (defaults 10 MB; 40 MB for
+  full section listings; both configurable), with overflow reported as
+  `*ResponseTooLargeError` rather than a truncated decode.
 
 ## API
 
-- **Constructor:** `New(baseURL, token, ...Option)` — options `WithCACertPEM`, `WithMaxAttempts` (total, default 3), `WithBaseDelay`, `WithTimeout`, `WithOnRetry` (retry-counter hook), `WithHTTPClient` (caller-owned transport, tests).
+- **Constructor:** `New(baseURL, token, ...Option)` — options `WithCACertPEM`, `WithMaxAttempts` (total, default 3), `WithBaseDelay`, `WithTimeout`, `WithMaxBodyBytes`/`WithMaxListBodyBytes` (read caps), `WithLogger` (routes the client's own diagnostics; default `slog.Default()`), `WithOnRetry` (retry-counter hook), `WithHTTPClient` (caller-owned transport, tests).
 - **Derived clients:** `(*Client).ForToken(token)` — same server + shared connection pool, different token (the per-user write path).
 - **Library:** `Sections`, `SectionItems(key)`, `RecentlyAdded(key, type, sinceUnix)`, `Metadata(key)`, `Children(key)`, `AllLeaves(key)`, `ItemExists(key)` (fail-closed: an undetermined check is an error, never "gone"), `ItemsByGUID(guid)`, `ShowForEpisodeGUID(guid)` (ambiguity yields `""`, refusing to guess), `ContainerTotalSize(path)`.
 - **Sessions & history:** `Sessions()`, `History(sinceUnix)` — history and recently-added filters use Plex's literal single-char `>=` operator (a malformed or encoded operator is silently ignored by Plex, returning the full unfiltered set; the literal form is a pinned wire contract).
@@ -103,7 +103,7 @@ The token grants full server access; the client defends it on every request:
 - **Stream selection:** `SetAudioStream(partID, streamID)`, `SetSubtitleStream(partID, streamID)`, `DisableSubtitles(partID)` — user-scoped by requesting token.
 - **plex.tv:** `NewTV(token, ...TVOption)`, `(*TV).SharedServers(machineID)`.
 - **Types:** `MC[T]` (the MediaContainer envelope, for `Get` escape-hatch decoding), `Item` (Plex's polymorphic metadata item: library entries, sessions, and history rows are one wire shape), `FlexInt` (absorbs Plex's number-or-quoted-string fields), `RatingKey` (validated identifier), the `Media`→`Part`→`Stream` graph, `Section`, `ServerIdentity`, `Account`, `SharedServer`, statistics types.
-- **Errors:** `ErrNotFound` + `IsNotFound(err)`, `StatusError{Method, Path, Status, Code}`, `ResponseTooLargeError{Path, Limit}`, `IsFatalStartup(err)` (the shared startup classifier: a 4xx other than 408/429 will not self-heal and should fail startup loudly; everything else is transient).
+- **Errors:** `ErrNotFound` + `IsNotFound(err)`, `StatusError{Method, Path, Status, Code}`, `ResponseTooLargeError{Path, Limit}`, `IsConfigError(err)` (a 4xx other than 408/429 is a configuration/authorization failure that will not self-heal; everything else is transient).
 - **Escape hatch:** `Get(ctx, path, &result)` for endpoints without a typed method, with the same hardening (path guard, redirect refusal, retries, body caps).
 
 ## Unsupported by design
