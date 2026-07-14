@@ -96,11 +96,11 @@ func (t *TV) SharedServers(ctx context.Context, machineIdentifier string) ([]Sha
 		httpx.DrainClose(resp.Body)
 		return nil, &StatusError{Method: http.MethodGet, Path: "plex.tv shared_servers", Status: resp.Status, Code: resp.StatusCode}
 	}
-	body, err := httpx.ReadLimitedBody(resp.Body, maxBodyBytes)
+	body, err := httpx.ReadLimitedBody(resp.Body, DefaultMaxBodyBytes)
 	if err != nil {
 		var tooLarge *httpx.ResponseTooLargeError
 		if errors.As(err, &tooLarge) {
-			return nil, &ResponseTooLargeError{Path: "plex.tv shared_servers", Limit: maxBodyBytes}
+			return nil, &ResponseTooLargeError{Path: "plex.tv shared_servers", Limit: DefaultMaxBodyBytes}
 		}
 		return nil, fmt.Errorf("plex.tv shared_servers: reading body: %w", err)
 	}

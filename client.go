@@ -15,12 +15,16 @@ import (
 	"github.com/cplieger/httpx/v2"
 )
 
-// Read caps per endpoint class. A single item or a session/history page fits
-// well inside maxBodyBytes; a full library-section listing can be an order
-// of magnitude larger.
+// Default read caps per endpoint class. A single item or a session/history
+// page fits well inside the general cap; a full library-section listing can
+// be an order of magnitude larger. Both are configurable (WithMaxBodyBytes,
+// WithMaxListBodyBytes) for deployments whose libraries outgrow them.
 const (
-	maxBodyBytes     = 10 << 20 // 10 MB: metadata, sessions, history, server info
-	maxListBodyBytes = 40 << 20 // 40 MB: full section listings (SectionItems)
+	// DefaultMaxBodyBytes caps metadata, session, history, and server-info
+	// responses (10 MB).
+	DefaultMaxBodyBytes = 10 << 20
+	// DefaultMaxListBodyBytes caps full section listings (40 MB).
+	DefaultMaxListBodyBytes = 40 << 20
 )
 
 // Transport/retry defaults. Attempt counts are total (httpx v2 semantics:
@@ -39,22 +43,28 @@ const (
 // Client is a Plex Media Server API client for one base URL + token.
 // A single Client is safe for concurrent use. Construct with New.
 type Client struct {
-	httpClient *http.Client
-	baseURL    *url.URL
-	token      string
-	timeout    time.Duration
+	httpClient  *http.Client
+	logger      *slog.Logger
+	baseURL     *url.URL
+	token       string
+	timeout     time.Duration
+	maxBody     int64
+	maxListBody int64
 }
 
 // Option configures New.
 type Option func(*options)
 
 type options struct {
-	httpClient *http.Client
-	onRetry    httpx.OnRetry
-	caPEM      []byte
-	timeout    time.Duration
-	attempts   int
-	baseDelay  time.Duration
+	httpClient  *http.Client
+	logger      *slog.Logger
+	onRetry     httpx.OnRetry
+	caPEM       []byte
+	timeout     time.Duration
+	attempts    int
+	baseDelay   time.Duration
+	maxBody     int64
+	maxListBody int64
 }
 
 // WithHTTPClient supplies a caller-owned *http.Client, replacing the
@@ -99,6 +109,41 @@ func WithOnRetry(fn httpx.OnRetry) Option {
 	return func(o *options) { o.onRetry = fn }
 }
 
+// WithLogger sets the slog.Logger for the client's own diagnostics (the
+// construction-time plaintext-URL warning and the over-cap response
+// warning). Defaults to slog.Default(); pass a level-filtered or discard
+// logger to quiet them.
+func WithLogger(l *slog.Logger) Option {
+	return func(o *options) {
+		if l != nil {
+			o.logger = l
+		}
+	}
+}
+
+// WithMaxBodyBytes sets the read cap for metadata, session, history, and
+// server-info responses (default DefaultMaxBodyBytes). Non-positive values
+// are ignored.
+func WithMaxBodyBytes(n int64) Option {
+	return func(o *options) {
+		if n > 0 {
+			o.maxBody = n
+		}
+	}
+}
+
+// WithMaxListBodyBytes sets the read cap for full section listings
+// (default DefaultMaxListBodyBytes) — the knob for libraries large enough
+// that a section's listing outgrows the default. Non-positive values are
+// ignored.
+func WithMaxListBodyBytes(n int64) Option {
+	return func(o *options) {
+		if n > 0 {
+			o.maxListBody = n
+		}
+	}
+}
+
 // New parses and validates baseURL (http/https scheme, non-empty host) and
 // returns a Client. Unless WithHTTPClient overrides it, the transport is:
 // OS trust store or the pinned CA from WithCACertPEM, a per-attempt
@@ -120,9 +165,12 @@ func New(baseURL, token string, opts ...Option) (*Client, error) {
 	}
 
 	o := options{
-		timeout:   defaultRequestTimeout,
-		attempts:  defaultMaxAttempts,
-		baseDelay: defaultBaseDelay,
+		logger:      slog.Default(),
+		timeout:     defaultRequestTimeout,
+		attempts:    defaultMaxAttempts,
+		baseDelay:   defaultBaseDelay,
+		maxBody:     DefaultMaxBodyBytes,
+		maxListBody: DefaultMaxListBodyBytes,
 	}
 	for _, opt := range opts {
 		opt(&o)
@@ -135,8 +183,16 @@ func New(baseURL, token string, opts ...Option) (*Client, error) {
 			return nil, err
 		}
 	}
-	warnIfPlaintextURL(parsed)
-	return &Client{baseURL: parsed, token: token, httpClient: hc, timeout: o.timeout}, nil
+	warnIfPlaintextURL(o.logger, parsed)
+	return &Client{
+		baseURL:     parsed,
+		token:       token,
+		httpClient:  hc,
+		logger:      o.logger,
+		timeout:     o.timeout,
+		maxBody:     o.maxBody,
+		maxListBody: o.maxListBody,
+	}, nil
 }
 
 // ForToken returns a Client for the same server and transport but a
@@ -200,8 +256,9 @@ func newHTTPClient(o *options) (*http.Client, error) {
 // warnIfPlaintextURL emits one construction-time warning when the server
 // URL is http:// to a non-loopback, non-docker-short-name host: the token
 // transits the network unencrypted. A dotless hostname is treated as a
-// docker network name (trusted bridge) and stays quiet.
-func warnIfPlaintextURL(u *url.URL) {
+// docker network name (trusted bridge) and stays quiet. Routed through the
+// configured logger so a deliberate plaintext deployment can quiet it.
+func warnIfPlaintextURL(logger *slog.Logger, u *url.URL) {
 	if u == nil || u.Scheme != "http" {
 		return
 	}
@@ -216,7 +273,7 @@ func warnIfPlaintextURL(u *url.URL) {
 	} else if !strings.Contains(host, ".") {
 		return
 	}
-	slog.Warn("plex server URL is http:// to a non-local host; X-Plex-Token will transit unencrypted. "+
+	logger.Warn("plex server URL is http:// to a non-local host; X-Plex-Token will transit unencrypted. "+
 		"Front Plex with a TLS proxy and use https:// for off-LAN deployments.",
 		"host", host)
 }
@@ -289,11 +346,11 @@ func (c *Client) do(ctx context.Context, method, path string, maxBytes int64, re
 	if err != nil {
 		var tooLarge *httpx.ResponseTooLargeError
 		if errors.As(err, &tooLarge) {
-			// Operator-facing breadcrumb (a stable log contract): an
-			// over-cap body almost always means an unfiltered or oversized
-			// response class, worth alerting on rather than just failing
-			// the one call.
-			slog.Warn("plex API response exceeded read cap; body truncated, likely an unfiltered or oversized response",
+			// Operator-facing breadcrumb: an over-cap body almost always
+			// means an unfiltered or oversized response class, worth
+			// surfacing in logs beyond the one failed call. Routed through
+			// the configured logger.
+			c.logger.Warn("plexapi: response exceeded read cap",
 				"method", method, "path", path, "cap_bytes", maxBytes)
 			return &ResponseTooLargeError{Path: path, Limit: maxBytes}
 		}
@@ -324,13 +381,13 @@ func redactedTransportErr(err error) error {
 // (decode through MC[T] for container-wrapped payloads); the same
 // hardening (path guard, redirect refusal, retries, body cap) applies.
 func (c *Client) Get(ctx context.Context, path string, result any) error {
-	return c.do(ctx, http.MethodGet, path, maxBodyBytes, result)
+	return c.do(ctx, http.MethodGet, path, c.maxBody, result)
 }
 
 // put issues a PUT (no body, like Plex's parameterized mutation endpoints)
 // and discards the response. Never retried.
 func (c *Client) put(ctx context.Context, path string) error {
-	return c.do(ctx, http.MethodPut, path, maxBodyBytes, nil)
+	return c.do(ctx, http.MethodPut, path, c.maxBody, nil)
 }
 
 // fetchMetadata decodes {"MediaContainer":{"Metadata":[...]}} lists, the
@@ -351,7 +408,7 @@ func fetchDirectory[T any](ctx context.Context, c *Client, path string) ([]T, er
 	var resp MC[struct {
 		Directory []T `json:"Directory"`
 	}]
-	if err := c.do(ctx, http.MethodGet, path, maxBodyBytes, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, path, c.maxBody, &resp); err != nil {
 		return nil, err
 	}
 	return resp.MediaContainer.Directory, nil

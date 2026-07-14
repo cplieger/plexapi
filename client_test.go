@@ -177,15 +177,15 @@ func TestDoStatusMapping(t *testing.T) {
 
 func TestDoBodyCap(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		big := strings.Repeat("x", int(maxBodyBytes)+10)
+		big := strings.Repeat("x", int(DefaultMaxBodyBytes)+10)
 		_, _ = w.Write([]byte(`{"pad":"` + big + `"}`))
 	}))
 	defer srv.Close()
 	var out map[string]any
 	err := newTestClient(t, srv).Get(t.Context(), "/x", &out)
 	var tle *ResponseTooLargeError
-	if !errors.As(err, &tle) || tle.Limit != maxBodyBytes {
-		t.Errorf("err = %v, want ResponseTooLargeError with limit %d", err, maxBodyBytes)
+	if !errors.As(err, &tle) || tle.Limit != DefaultMaxBodyBytes {
+		t.Errorf("err = %v, want ResponseTooLargeError with limit %d", err, DefaultMaxBodyBytes)
 	}
 }
 
@@ -296,7 +296,7 @@ func TestRequestContextDefaultTimeout(t *testing.T) {
 	}
 }
 
-func TestIsFatalStartup(t *testing.T) {
+func TestIsConfigError(t *testing.T) {
 	tests := []struct {
 		name string
 		err  error
@@ -315,8 +315,8 @@ func TestIsFatalStartup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := IsFatalStartup(tt.err); got != tt.want {
-				t.Errorf("IsFatalStartup = %v, want %v", got, tt.want)
+			if got := IsConfigError(tt.err); got != tt.want {
+				t.Errorf("IsConfigError = %v, want %v", got, tt.want)
 			}
 		})
 	}

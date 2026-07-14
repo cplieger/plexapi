@@ -3,6 +3,7 @@ package plexapi
 import (
 	"context"
 	"encoding/pem"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -137,4 +138,115 @@ func TestAccessors(t *testing.T) {
 	if (&StatusError{Method: "GET", Path: "/x", Status: "401 Unauthorized", Code: 401}).Error() == "" {
 		t.Error("empty StatusError message")
 	}
+}
+
+// TestWithLoggerRoutesDiagnostics pins the logger seam: both library log
+// sites (plaintext warning, over-cap warning) route through the configured
+// logger, so a consumer can quiet or redirect them.
+func TestWithLoggerRoutesDiagnostics(t *testing.T) {
+	rec := &warnRecorder{}
+	custom := slog.New(rec)
+
+	// Construction-time plaintext warning goes to the custom logger, not
+	// the (recording) default.
+	def := captureLog(t)
+	c, err := New("http://plex.example.com:32400", "tok", WithLogger(custom))
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	rec.mu.Lock()
+	for _, m := range rec.msgs {
+		if strings.Contains(m, "unencrypted") {
+			found = true
+		}
+	}
+	rec.mu.Unlock()
+	if !found {
+		t.Error("plaintext warning did not reach the configured logger")
+	}
+	for _, m := range def.msgs {
+		if strings.Contains(m, "unencrypted") {
+			t.Error("plaintext warning leaked to slog.Default despite WithLogger")
+		}
+	}
+
+	// Over-cap warning goes to the same configured logger.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(make([]byte, 64))
+	}))
+	defer srv.Close()
+	c2, err := New(srv.URL, "tok", WithLogger(custom), WithMaxBodyBytes(16))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c2.Get(t.Context(), "/x", &struct{}{}); err == nil {
+		t.Fatal("over-cap Get returned nil error")
+	}
+	capWarn := false
+	rec.mu.Lock()
+	for _, m := range rec.msgs {
+		if strings.Contains(m, "read cap") {
+			capWarn = true
+		}
+	}
+	rec.mu.Unlock()
+	if !capWarn {
+		t.Error("over-cap warning did not reach the configured logger")
+	}
+	_ = c
+}
+
+// TestBodyCapOptions pins the configurable caps: the general cap and the
+// list cap are independent, and ForToken inherits both.
+func TestBodyCapOptions(t *testing.T) {
+	payload := `{"MediaContainer":{"Metadata":[{"ratingKey":"1","title":"` + strings.Repeat("x", 200) + `"}]}}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(payload))
+	}))
+	defer srv.Close()
+
+	t.Run("raised list cap admits a big listing", func(t *testing.T) {
+		c, err := New(srv.URL, "tok", WithMaxBodyBytes(16), WithMaxListBodyBytes(1<<20))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.SectionItems(t.Context(), "1"); err != nil {
+			t.Errorf("SectionItems under raised list cap: %v", err)
+		}
+		// The general cap still applies to non-list endpoints.
+		if _, err := c.Sessions(t.Context()); err == nil {
+			t.Error("Sessions under tiny general cap should overflow")
+		}
+	})
+	t.Run("lowered list cap rejects", func(t *testing.T) {
+		c, err := New(srv.URL, "tok", WithMaxListBodyBytes(16))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = c.SectionItems(t.Context(), "1")
+		var tle *ResponseTooLargeError
+		if !errors.As(err, &tle) || tle.Limit != 16 {
+			t.Errorf("err = %v, want ResponseTooLargeError limit 16", err)
+		}
+	})
+	t.Run("non-positive values ignored", func(t *testing.T) {
+		c, err := New(srv.URL, "tok", WithMaxBodyBytes(0), WithMaxListBodyBytes(-5))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.maxBody != DefaultMaxBodyBytes || c.maxListBody != DefaultMaxListBodyBytes {
+			t.Errorf("caps = (%d,%d), want defaults", c.maxBody, c.maxListBody)
+		}
+	})
+	t.Run("ForToken inherits caps and logger", func(t *testing.T) {
+		c, err := New(srv.URL, "tok", WithMaxListBodyBytes(1<<20))
+		if err != nil {
+			t.Fatal(err)
+		}
+		u := c.ForToken("other")
+		if u.maxListBody != 1<<20 || u.logger != c.logger {
+			t.Error("ForToken dropped configuration")
+		}
+	})
 }

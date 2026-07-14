@@ -126,7 +126,7 @@ func TestSharedServersMalformedXML(t *testing.T) {
 
 func TestSharedServersOversizedBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write(make([]byte, maxBodyBytes+10))
+		_, _ = w.Write(make([]byte, DefaultMaxBodyBytes+10))
 	}))
 	defer srv.Close()
 	_, err := NewTV("t", WithTVBaseURL(srv.URL)).SharedServers(t.Context(), "m")
