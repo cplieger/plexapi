@@ -276,11 +276,18 @@ func TestSessionsDecodesSessionGraph(t *testing.T) {
 	}
 }
 
+// TestIdentityAndAdminAccount pins the real /accounts shape (verified live
+// 2026-07 against Plex 1.43.3): the id-0 managed placeholder with an empty
+// name comes first, the owner is id 1 under the server-local display name,
+// and shared users follow under their plex.tv global ids. The
+// /myplex/account fixture carries the real enveloped email-form payload
+// that made name-matching resolve the id-0 placeholder; the `seen`
+// assertion pins that AdminAccount no longer consults it at all.
 func TestIdentityAndAdminAccount(t *testing.T) {
-	srv, _ := fixtureServer(t, map[string]string{
-		"/myplex/account": `{"username":"admin@example.com"}`,
+	srv, seen := fixtureServer(t, map[string]string{
+		"/myplex/account": `{"MyPlex":{"username":"admin@example.com"}}`,
 		"/accounts": `{"MediaContainer":{"Account":[
-			{"id":1,"name":"admin@example.com"},{"id":2,"name":"kid"}]}}`,
+			{"id":0,"name":""},{"id":1,"name":"Owner"},{"id":19646554,"name":"kid"}]}}`,
 		"/": `{"MediaContainer":{"friendlyName":"borg","machineIdentifier":"m-1",
 			"version":"1.41.0","platform":"Linux","myPlexSubscription":true,
 			"transcoderActiveVideoSessions":2}}`,
@@ -299,15 +306,35 @@ func TestIdentityAndAdminAccount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if acct.ID != 1 {
-		t.Errorf("AdminAccount = %+v", acct)
+	if acct.ID != 1 || acct.Name != "Owner" {
+		t.Errorf("AdminAccount = %+v, want ID=1 Name=Owner", acct)
+	}
+	for _, req := range *seen {
+		if strings.Contains(req, "/myplex/account") {
+			t.Errorf("AdminAccount consulted /myplex/account (%s); owner resolution must use /accounts id 1 only", req)
+		}
 	}
 }
 
-func TestAdminAccountNotFound(t *testing.T) {
+func TestMyPlexUsernameEnvelope(t *testing.T) {
 	srv, _ := fixtureServer(t, map[string]string{
-		"/myplex/account": `{"username":"ghost"}`,
-		"/accounts":       `{"MediaContainer":{"Account":[{"id":2,"name":"kid"}]}}`,
+		"/myplex/account": `{"MyPlex":{"username":"admin@example.com"}}`,
+	})
+	name, err := newTestClient(t, srv).MyPlexUsername(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "admin@example.com" {
+		t.Errorf("MyPlexUsername = %q, want admin@example.com", name)
+	}
+}
+
+// TestAdminAccountPlaceholderNeverMatches pins the exact production
+// failure: an accounts list whose only empty-name entry is the id-0
+// placeholder must never resolve as the admin when the owner is absent.
+func TestAdminAccountPlaceholderNeverMatches(t *testing.T) {
+	srv, _ := fixtureServer(t, map[string]string{
+		"/accounts": `{"MediaContainer":{"Account":[{"id":0,"name":""},{"id":2,"name":"kid"}]}}`,
 	})
 	if _, err := newTestClient(t, srv).AdminAccount(t.Context()); err == nil ||
 		!strings.Contains(err.Error(), "not found in system accounts") {

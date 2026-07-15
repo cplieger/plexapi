@@ -29,34 +29,52 @@ func (c *Client) Accounts(ctx context.Context) ([]Account, error) {
 }
 
 // MyPlexUsername returns the username of the plex.tv account the server is
-// signed into (GET /myplex/account).
+// signed into (GET /myplex/account). The payload arrives wrapped in a
+// {"MyPlex":{...}} envelope, and on current servers the username field
+// carries the plex.tv account identity in email form — it does NOT match
+// the owner's server-local display name in Accounts, so it must never be
+// used to identify the owner among system accounts (see AdminAccount).
 func (c *Client) MyPlexUsername(ctx context.Context) (string, error) {
 	var resp struct {
-		Username string `json:"username"`
+		MyPlex struct {
+			Username string `json:"username"`
+		} `json:"MyPlex"`
 	}
 	if err := c.Get(ctx, "/myplex/account", &resp); err != nil {
 		return "", err
 	}
-	return resp.Username, nil
+	return resp.MyPlex.Username, nil
 }
 
-// AdminAccount resolves the server's admin system account by matching the
-// myplex username against the system accounts list.
+// ownerAccountID is the server-local system-account id Plex reserves for
+// the server owner in GET /accounts (id 0 is the managed placeholder with
+// an empty name). Sessions and watch history report the owner under this
+// same server-local id, so resolving the admin here keeps the returned
+// Account.ID in the id space consumers compare session/history ids
+// against.
+const ownerAccountID = 1
+
+// AdminAccount resolves the server's admin (owner) system account: the
+// owner is always account id 1 in the system accounts list.
+//
+// It deliberately does not consult /myplex/account. That endpoint's
+// username is the plex.tv account email wrapped in a {"MyPlex":{...}}
+// envelope; the previous implementation decoded a top-level username
+// (silently yielding ""), name-matched it against the id-0 placeholder
+// account (name=""), and returned the placeholder as the admin — so
+// consumers comparing session user ids against the admin id skipped every
+// owner event. Verified live 2026-07 against Plex 1.43.3.
 func (c *Client) AdminAccount(ctx context.Context) (*Account, error) {
-	username, err := c.MyPlexUsername(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("fetching account: %w", err)
-	}
 	accounts, err := c.Accounts(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("fetching system accounts: %w", err)
 	}
 	for _, a := range accounts {
-		if a.Name == username {
+		if a.ID == ownerAccountID {
 			return &a, nil
 		}
 	}
-	return nil, fmt.Errorf("admin user %q not found in system accounts", username)
+	return nil, fmt.Errorf("owner account (id %d) not found in system accounts", ownerAccountID)
 }
 
 // Providers returns the media-provider tree (GET /media/providers with
