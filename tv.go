@@ -12,8 +12,8 @@ import (
 	"github.com/cplieger/httpx/v2"
 )
 
-// plexTVBase is the plex.tv API origin. Var, not const, so tests can point
-// a TV client at an httptest server via WithTVBaseURL.
+// plexTVBase is the plex.tv API origin. Tests point a TV client at an
+// httptest server via WithTVBaseURL, which overrides this per instance.
 const plexTVBase = "https://plex.tv"
 
 // SharedServer is one <SharedServer> element from the plex.tv

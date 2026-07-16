@@ -23,16 +23,21 @@
 //
 // # Resilience model
 //
-// GET requests ride an httpx retry round-tripper: 429/502/503/504 and
-// transient transport errors (timeouts, resets, DNS) are retried with
-// jittered exponential backoff, honoring Retry-After on 429. Writes (PUT)
-// go through the same client but are never retried (body replay is not
-// enabled), so a mutation is applied at most once per call. A per-attempt
-// response-header timeout on the transport makes a stalled attempt fail as
-// a retryable error instead of hanging the sequence; a per-request default
-// timeout (WithTimeout) applies only when the caller's context carries no
-// deadline, so a caller deadline is always the authoritative budget.
-// Response bodies are size-capped before decode.
+// On the server Client, GET requests ride an httpx retry round-tripper:
+// 429/502/503/504 and transient transport errors (timeouts, resets, DNS)
+// are retried with jittered exponential backoff, honoring Retry-After on
+// 429. Writes (PUT) go through the same client but are never retried (body
+// replay is not enabled), so a mutation is applied at most once per call.
+// A per-attempt response-header timeout on the transport makes a stalled
+// attempt fail as a retryable error instead of hanging the sequence; a
+// per-request default timeout (WithTimeout) applies only when the caller's
+// context carries no deadline, so a caller deadline is always the
+// authoritative budget. Response bodies are size-capped before decode.
+//
+// The plex.tv TV client is deliberately outside this model: a minimal
+// client (30s timeout, refuse-all redirects, no retry transport) for one
+// fixed public endpoint whose sole production caller owns its own
+// semantically-aware retry policy.
 //
 // # Wire model
 //
@@ -46,4 +51,13 @@
 // documented escape hatch for anything else (for example the Plex Pass
 // statistics endpoints have typed helpers, but a new undocumented endpoint
 // can be reached without waiting for a release).
+//
+// Consumers that decode into their own domain types do not give up the
+// package's wire-grammar ownership: the exported path builders
+// (SessionsPath, HistoryPath, MetadataPath, ...) carry the endpoint paths,
+// rating-key validation, and the literal filter-operator contract, and
+// FetchMetadata / FetchMetadataList / FetchDirectory decode the
+// MediaContainer envelopes into any caller-owned type over the same
+// hardened transport. The typed Item methods are composition over exactly
+// these pieces.
 package plexapi
