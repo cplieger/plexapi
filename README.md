@@ -96,8 +96,9 @@ The token grants full server access; the client defends it on every request:
 ## API
 
 - **Constructor:** `New(baseURL, token, ...Option)` — options `WithCACertPEM`, `WithMaxAttempts` (total, default 3), `WithBaseDelay`, `WithTimeout`, `WithMaxBodyBytes`/`WithMaxListBodyBytes` (read caps), `WithLogger` (routes the client's own diagnostics; default `slog.Default()`), `WithOnRetry` (retry-counter hook), `WithHTTPClient` (caller-owned transport, tests).
-- **Derived clients:** `(*Client).ForToken(token)` — same server + shared connection pool, different token (the per-user write path).
-- **Library:** `Sections`, `SectionItems(key)`, `RecentlyAdded(key, type, sinceUnix)`, `Metadata(key)`, `Children(key)`, `AllLeaves(key)`, `ItemExists(key)` (fail-closed: an undetermined check is an error, never "gone"), `ItemsByGUID(guid)`, `ShowForEpisodeGUID(guid)` (ambiguity yields `""`, refusing to guess), `ContainerTotalSize(path)`.
+- **Derived clients:** `(*Client).ForToken(token)` — same server + shared connection pool, different token (the per-user write path). `(*Client).BaseTransport()` — an independent clone of the hardened base transport (CA trust, per-attempt header timeout, no retry wrapper) for a caller-owned protocol upgrade such as a WebSocket dial; nil under `WithHTTPClient`.
+- **Wire-grammar layer:** path builders `SessionsPath()`, `SectionsPath()`, `HistoryPath(sinceUnix)`, `SectionItemsPath(key)`, `RecentlyAddedPath(key, type, sinceUnix)`, `MetadataPath(key)`, `ChildrenPath(key)`, `AllLeavesPath(key)` own every endpoint path, the rating-key validation, and the literal filter-operator contract; generic decoders `FetchMetadata[T]`, `FetchMetadataList[T]` (large-listing cap), and `FetchDirectory[T]` decode the MediaContainer envelopes into caller-owned types over the same hardened transport. Consumers with their own domain models compose these instead of hand-building paths; the typed `Item` methods are composition over exactly these pieces.
+- **Library:** `Sections`, `SectionItems(key)`, `RecentlyAdded(key, type, sinceUnix)`, `Metadata(key)`, `Children(key)`, `AllLeaves(key)`, `ItemExists(key)` (fail-closed: an undetermined check is an error, never "gone"), `ItemsByGUID(guid)`, `ShowForEpisodeGUID(guid)` (ambiguity yields `""`, refusing to guess), `ContainerTotalSize(section, type)` (validated section key; `type` 0 = unfiltered).
 - **Sessions & history:** `Sessions()`, `History(sinceUnix)` — history and recently-added filters use Plex's literal single-char `>=` operator (a malformed or encoded operator is silently ignored by Plex, returning the full unfiltered set; the literal form is a pinned wire contract).
 - **Server:** `Identity()`, `Accounts()`, `MyPlexUsername()`, `AdminAccount()`, `Providers()` (per-library duration/storage), `StatisticsResources(timespan)` / `StatisticsBandwidth(timespan)` (Plex Pass; 404 → `ErrNotFound` for graceful degradation).
 - **Stream selection:** `SetAudioStream(partID, streamID)`, `SetSubtitleStream(partID, streamID)`, `DisableSubtitles(partID)` — user-scoped by requesting token.
@@ -113,7 +114,7 @@ Deliberate non-goals, not TODOs:
 | Feature | Rationale |
 | --- | --- |
 | Library management writes (edit metadata, delete items, scan triggers) | The consumers are read-and-select tools; the only mutations modeled are stream selections. |
-| WebSocket notifications | A different transport with app-specific reconnect policy; consumers own it (the client exposes `BaseURL`/`HTTPClient` so a dialer can share the transport and trust settings). |
+| WebSocket notifications | A different transport with app-specific reconnect policy; consumers own it (the client exposes `BaseURL`/`HTTPClient`, and `BaseTransport()` hands a dialer the hardened base transport — CA trust included — without the retry wrapper). |
 | Full plex.tv account surface (devices, friends, PINs) | `SharedServers` is the one account call a consumer needs. |
 | Insecure TLS (`InsecureSkipVerify`) | Pin the CA instead; verification never turns off. |
 | Response caching / request coalescing | Callers own their caching layer; the client stays lock-free and stateless per request. |

@@ -232,7 +232,7 @@ func TestContainerTotalSize(t *testing.T) {
 	srv, seen := fixtureServer(t, map[string]string{
 		"/library/sections/2/all": `{"MediaContainer":{"totalSize":4360}}`,
 	})
-	got, err := newTestClient(t, srv).ContainerTotalSize(t.Context(), "/library/sections/2/all?type=4")
+	got, err := newTestClient(t, srv).ContainerTotalSize(t.Context(), "2", 4)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,6 +245,28 @@ func TestContainerTotalSize(t *testing.T) {
 			t.Errorf("request %q lacks %q", req, want)
 		}
 	}
+
+	t.Run("unfiltered omits type param", func(t *testing.T) {
+		srv2, seen2 := fixtureServer(t, map[string]string{
+			"/library/sections/3/all": `{"MediaContainer":{"totalSize":12}}`,
+		})
+		got, err := newTestClient(t, srv2).ContainerTotalSize(t.Context(), "3", 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != 12 {
+			t.Errorf("totalSize = %d", got)
+		}
+		if strings.Contains((*seen2)[0], "type=") {
+			t.Errorf("unfiltered request %q must not carry a type param", (*seen2)[0])
+		}
+	})
+	t.Run("invalid section key rejected before any request", func(t *testing.T) {
+		c, _ := New("http://plex:32400", "tok")
+		if _, err := c.ContainerTotalSize(t.Context(), "3; DROP", 4); err == nil {
+			t.Error("non-numeric section key accepted")
+		}
+	})
 }
 
 func TestSessionsDecodesSessionGraph(t *testing.T) {

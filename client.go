@@ -43,13 +43,14 @@ const (
 // Client is a Plex Media Server API client for one base URL + token.
 // A single Client is safe for concurrent use. Construct with New.
 type Client struct {
-	httpClient  *http.Client
-	logger      *slog.Logger
-	baseURL     *url.URL
-	token       string
-	timeout     time.Duration
-	maxBody     int64
-	maxListBody int64
+	httpClient    *http.Client
+	baseTransport *http.Transport
+	logger        *slog.Logger
+	baseURL       *url.URL
+	token         string
+	timeout       time.Duration
+	maxBody       int64
+	maxListBody   int64
 }
 
 // Option configures New.
@@ -177,21 +178,23 @@ func New(baseURL, token string, opts ...Option) (*Client, error) {
 	}
 
 	hc := o.httpClient
+	var base *http.Transport
 	if hc == nil {
-		hc, err = newHTTPClient(&o)
+		hc, base, err = newHTTPClient(&o)
 		if err != nil {
 			return nil, err
 		}
 	}
 	warnIfPlaintextURL(o.logger, parsed)
 	return &Client{
-		baseURL:     parsed,
-		token:       token,
-		httpClient:  hc,
-		logger:      o.logger,
-		timeout:     o.timeout,
-		maxBody:     o.maxBody,
-		maxListBody: o.maxListBody,
+		baseURL:       parsed,
+		token:         token,
+		httpClient:    hc,
+		baseTransport: base,
+		logger:        o.logger,
+		timeout:       o.timeout,
+		maxBody:       o.maxBody,
+		maxListBody:   o.maxListBody,
 	}, nil
 }
 
@@ -217,19 +220,38 @@ func (c *Client) Token() string { return c.token }
 // share the same transport (CA trust, redirect policy).
 func (c *Client) HTTPClient() *http.Client { return c.httpClient }
 
-// newHTTPClient assembles the hardened default transport stack.
-func newHTTPClient(o *options) (*http.Client, error) {
+// BaseTransport returns an independent clone of the hardened base transport
+// the client was constructed with — the same CA trust (WithCACertPEM or the
+// OS store) and per-attempt response-header timeout, WITHOUT the retry
+// round-tripper. It is the seam for a caller-owned protocol upgrade (a
+// WebSocket dialer) that must share the client's trust settings while
+// owning its own dial policy: the retry wrapper's base transport is not
+// otherwise reachable, and rebuilding a transport from scratch silently
+// drops a pinned CA. Mutating the returned clone never affects the client.
+// Returns nil when the client was built with WithHTTPClient (the caller
+// already owns that transport).
+func (c *Client) BaseTransport() *http.Transport {
+	if c.baseTransport == nil {
+		return nil
+	}
+	return c.baseTransport.Clone()
+}
+
+// newHTTPClient assembles the hardened default transport stack, returning
+// the client and the base transport under its retry round-tripper (retained
+// so BaseTransport can clone it).
+func newHTTPClient(o *options) (*http.Client, *http.Transport, error) {
 	var base *http.Transport
 	if len(o.caPEM) > 0 {
 		tr, err := httpx.CATransport(o.caPEM)
 		if err != nil {
-			return nil, fmt.Errorf("pinning Plex CA: %w", err)
+			return nil, nil, fmt.Errorf("pinning Plex CA: %w", err)
 		}
 		base = tr
 	} else {
 		dt, err := httpx.CloneDefaultTransport()
 		if err != nil {
-			return nil, fmt.Errorf("building base transport: %w", err)
+			return nil, nil, fmt.Errorf("building base transport: %w", err)
 		}
 		base = dt
 	}
@@ -248,7 +270,7 @@ func newHTTPClient(o *options) (*http.Client, error) {
 		// default policy forwards custom headers (X-Plex-Token included) on
 		// cross-origin redirects — a hostile 302 would exfiltrate the token.
 		CheckRedirect: httpx.RefuseAllRedirects,
-	}, nil
+	}, base, nil
 }
 
 // warnIfPlaintextURL emits one construction-time warning when the server
@@ -380,8 +402,43 @@ func (c *Client) put(ctx context.Context, path string) error {
 	return c.do(ctx, http.MethodPut, path, c.maxBody, nil)
 }
 
-// fetchMetadata decodes {"MediaContainer":{"Metadata":[...]}} lists, the
-// dominant Plex response shape.
+// FetchMetadata fetches a server-relative path and decodes the
+// {"MediaContainer":{"Metadata":[...]}} envelope — the dominant Plex
+// response shape — into the caller-owned item type T. It is the exported
+// decode kernel for consumers that keep their own domain models: the same
+// generic the typed Item methods are built on (Go methods cannot be
+// type-parameterized, so it is a package function taking the client).
+// Compose it with the path builders (HistoryPath, MetadataPath, ...) so
+// the wire grammar stays owned by this package. Applies the general read
+// cap (WithMaxBodyBytes); use FetchMetadataList for full section listings.
+func FetchMetadata[T any](ctx context.Context, c *Client, path string) ([]T, error) {
+	return fetchMetadata[T](ctx, c, path, c.maxBody)
+}
+
+// FetchMetadataList is FetchMetadata under the large-listing read cap
+// (WithMaxListBodyBytes) — for full section listings (SectionItemsPath),
+// which on a big library are an order of magnitude larger than any other
+// Plex response.
+func FetchMetadataList[T any](ctx context.Context, c *Client, path string) ([]T, error) {
+	return fetchMetadata[T](ctx, c, path, c.maxListBody)
+}
+
+// FetchDirectory fetches a server-relative path and decodes the
+// {"MediaContainer":{"Directory":[...]}} envelope (library sections) into
+// the caller-owned type T, under the general read cap. The Directory
+// counterpart of FetchMetadata.
+func FetchDirectory[T any](ctx context.Context, c *Client, path string) ([]T, error) {
+	var resp MC[struct {
+		Directory []T `json:"Directory"`
+	}]
+	if err := c.do(ctx, http.MethodGet, path, c.maxBody, &resp); err != nil {
+		return nil, err
+	}
+	return resp.MediaContainer.Directory, nil
+}
+
+// fetchMetadata is the cap-parameterized core behind FetchMetadata and
+// FetchMetadataList.
 func fetchMetadata[T any](ctx context.Context, c *Client, path string, maxBytes int64) ([]T, error) {
 	var resp MC[struct {
 		Metadata []T `json:"Metadata"`
@@ -390,16 +447,4 @@ func fetchMetadata[T any](ctx context.Context, c *Client, path string, maxBytes 
 		return nil, err
 	}
 	return resp.MediaContainer.Metadata, nil
-}
-
-// fetchDirectory decodes {"MediaContainer":{"Directory":[...]}} lists
-// (library sections).
-func fetchDirectory[T any](ctx context.Context, c *Client, path string) ([]T, error) {
-	var resp MC[struct {
-		Directory []T `json:"Directory"`
-	}]
-	if err := c.do(ctx, http.MethodGet, path, c.maxBody, &resp); err != nil {
-		return nil, err
-	}
-	return resp.MediaContainer.Directory, nil
 }
