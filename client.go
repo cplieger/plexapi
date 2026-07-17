@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cplieger/httpx/v2"
+	"github.com/cplieger/httpx/v3"
 )
 
 // Default read caps per endpoint class. A single item or a session/history

@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/cplieger/httpx/v2"
+	"github.com/cplieger/httpx/v3"
 )
 
 // plexTVBase is the plex.tv API origin. Tests point a TV client at an
