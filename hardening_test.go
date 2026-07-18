@@ -138,6 +138,47 @@ func TestAccessors(t *testing.T) {
 	if (&StatusError{Method: "GET", Path: "/x", Status: "401 Unauthorized", Code: 401}).Error() == "" {
 		t.Error("empty StatusError message")
 	}
+	// RedirectPolicy exposes the policy (refuse-all by construction) without
+	// handing out the live *http.Client.
+	rp := c.RedirectPolicy()
+	if rp == nil {
+		t.Fatal("RedirectPolicy = nil for a default-constructed client")
+	}
+	if err := rp(nil, nil); !errors.Is(err, http.ErrUseLastResponse) {
+		t.Errorf("RedirectPolicy() = %v, want http.ErrUseLastResponse (refuse-all)", err)
+	}
+	bare, err := New("http://plex:32400", "tok", WithHTTPClient(&http.Client{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bare.RedirectPolicy() != nil {
+		t.Error("RedirectPolicy must be nil under WithHTTPClient with no caller policy")
+	}
+}
+
+// TestBaseURLCloneImmutable pins that BaseURL returns a copy: mutating the
+// returned URL must not re-target the client, whose requests keep resolving
+// against the configured origin. Handing out the internal pointer would let
+// any caller redirect every subsequent token-bearing request — the same
+// class the server-relative path guard closes.
+func TestBaseURLCloneImmutable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	c := newTestClient(t, srv)
+
+	stolen := c.BaseURL()
+	stolen.Scheme = "https"
+	stolen.Host = "evil.invalid:1"
+	stolen.Path = "/hijacked"
+
+	if got := c.BaseURL().String(); got != srv.URL {
+		t.Errorf("BaseURL after mutation = %q, want %q", got, srv.URL)
+	}
+	if err := c.Get(t.Context(), "/", nil); err != nil {
+		t.Errorf("request after BaseURL mutation failed (client re-targeted?): %v", err)
+	}
 }
 
 // TestWithLoggerRoutesDiagnostics pins the logger seam: both library log

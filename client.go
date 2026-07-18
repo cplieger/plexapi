@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -12,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cplieger/httpx/v2"
+	"github.com/cplieger/httpx/v3"
 )
 
 // Default read caps per endpoint class. A single item or a session/history
@@ -27,8 +28,8 @@ const (
 	DefaultMaxListBodyBytes = 40 << 20
 )
 
-// Transport/retry defaults. Attempt counts are total (httpx v2 semantics:
-// 3 = first try + 2 retries). The per-attempt response-header timeout lives
+// Transport/retry defaults. Attempt counts are total (3 = first try + 2
+// retries). The per-attempt response-header timeout lives
 // on the transport, NOT as an http.Client.Timeout: a client-level timeout
 // would wrap the retry round-tripper and cap the whole sequence, defeating
 // the retries it sits above; on the transport a stalled attempt fails as a
@@ -208,17 +209,31 @@ func (c *Client) ForToken(token string) *Client {
 	return &clone
 }
 
-// BaseURL returns the configured server base URL (for deriving a websocket
-// URL or logging the host).
-func (c *Client) BaseURL() *url.URL { return c.baseURL }
+// BaseURL returns a copy of the configured server base URL (for deriving a
+// websocket URL or logging the host). It is a clone: mutating it never
+// re-targets the client, whose every request resolves against the internal
+// original — handing out that pointer would reopen the origin-mutation
+// class the server-relative path guard exists to close.
+func (c *Client) BaseURL() *url.URL {
+	u := *c.baseURL
+	return &u
+}
 
-// Token returns the client's token (for cache-eviction comparisons; never
-// log it).
+// Token returns the client's token. Sanctioned in-process uses: comparing
+// tokens for cache eviction/rotation, constructing the plex.tv client
+// (NewTV) with the same credential, and authenticating a caller-owned
+// protocol upgrade (the X-Plex-Token header on a websocket dial). Never
+// log it, and never place it in a URL.
 func (c *Client) Token() string { return c.token }
 
-// HTTPClient returns the underlying *http.Client, so a websocket dialer can
-// share the same transport (CA trust, redirect policy).
-func (c *Client) HTTPClient() *http.Client { return c.httpClient }
+// RedirectPolicy returns the client's redirect policy (its CheckRedirect
+// function) so a caller-owned protocol upgrade — a websocket dialer — can
+// enforce the same policy on its own http.Client without access to the
+// live client. Pair it with BaseTransport, which carries the trust half of
+// that seam. Nil when the client was built via WithHTTPClient without a
+// CheckRedirect (net/http's follow-all default; the caller owns policy on
+// that path).
+func (c *Client) RedirectPolicy() httpx.CheckRedirect { return c.httpClient.CheckRedirect }
 
 // BaseTransport returns an independent clone of the hardened base transport
 // the client was constructed with — the same CA trust (WithCACertPEM or the
@@ -257,15 +272,21 @@ func newHTTPClient(o *options) (*http.Client, *http.Transport, error) {
 	}
 	base.ResponseHeaderTimeout = perAttemptHeaderTimeout
 
-	rtOpts := []httpx.RTOption{
-		httpx.WithRTMaxAttempts(o.attempts),
-		httpx.WithRTBaseDelay(o.baseDelay),
-	}
-	if o.onRetry != nil {
-		rtOpts = append(rtOpts, httpx.WithOnRetry(o.onRetry))
+	// httpx v3 TransportConfig: MaxAttempts 0 means "unset, take the default";
+	// a NEGATIVE value means exactly one attempt. plexapi's WithMaxAttempts
+	// contract is "minimum 1 — 1 disables retries", so any n < 1 maps to -1
+	// (try once) rather than being handed to the struct raw, where 0 would
+	// silently mean 3 total attempts.
+	attempts := o.attempts
+	if attempts < 1 {
+		attempts = -1
 	}
 	return &http.Client{
-		Transport: httpx.NewRetryRoundTripper(base, rtOpts...),
+		Transport: httpx.NewRetryRoundTripper(base, httpx.TransportConfig{
+			MaxAttempts: attempts,
+			BaseDelay:   o.baseDelay,
+			OnRetry:     o.onRetry,
+		}),
 		// Plex's API does not issue redirects; refuse to follow any. Go's
 		// default policy forwards custom headers (X-Plex-Token included) on
 		// cross-origin redirects — a hostile 302 would exfiltrate the token.
@@ -298,15 +319,6 @@ func warnIfPlaintextURL(logger *slog.Logger, u *url.URL) {
 		"host", host)
 }
 
-// requestContext applies the client's default timeout only when the
-// caller's context carries no deadline.
-func (c *Client) requestContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	if _, ok := ctx.Deadline(); ok || c.timeout <= 0 {
-		return ctx, func() {}
-	}
-	return context.WithTimeout(ctx, c.timeout)
-}
-
 // resolvePath validates that path is server-relative and resolves it
 // against the base URL. An absolute ("https://evil/x") or scheme-relative
 // ("//evil/x") reference would override the configured host via
@@ -329,7 +341,9 @@ func (c *Client) resolvePath(path string) (string, error) {
 // to ErrNotFound, other non-200s to *StatusError; bodies are capped at
 // maxBytes with the overflow reported as *ResponseTooLargeError.
 func (c *Client) do(ctx context.Context, method, path string, maxBytes int64, result any) error {
-	ctx, cancel := c.requestContext(ctx)
+	// The client's WithTimeout default applies only when the caller brought
+	// no deadline of its own (a caller deadline is never undercut).
+	ctx, cancel := httpx.ContextWithDefaultTimeout(ctx, c.timeout)
 	defer cancel()
 
 	target, err := c.resolvePath(path)
@@ -365,27 +379,91 @@ func (c *Client) do(ctx context.Context, method, path string, maxBytes int64, re
 		httpx.DrainClose(resp.Body)
 		return nil
 	}
-	body, err := httpx.ReadLimitedBody(resp.Body, maxBytes)
-	if err != nil {
-		var tooLarge *httpx.ResponseTooLargeError
-		if errors.As(err, &tooLarge) {
-			// Operator-facing breadcrumb: an over-cap body almost always
-			// means an unfiltered or oversized response class, worth
-			// surfacing in logs beyond the one failed call. Routed through
-			// the configured logger.
-			c.logger.Warn("plexapi: response exceeded read cap",
-				"method", method, "path", path, "cap_bytes", maxBytes)
-			return &ResponseTooLargeError{Path: path, Limit: maxBytes}
-		}
-		return fmt.Errorf("plex %s %s: reading body: %w", method, path, err)
+	return c.decodeBody(method, path, resp.Body, maxBytes, result)
+}
+
+// decodeBody stream-decodes a capped JSON body into result. The decoder
+// pulls through a counting reader bounded at cap+1 bytes, so peak memory is
+// the decoder's window plus the decoded values — not a full body buffer
+// followed by a decode copy (which doubled peak memory on 40 MB listings).
+// The +1 probe byte distinguishes exactly-at-cap from over-cap (mirroring
+// httpx.ReadLimitedBody), and the over-cap check outranks every decode
+// error, so an oversized body always surfaces as the typed
+// *ResponseTooLargeError — never as a truncation-shaped decode error. An
+// empty body (zero bytes) decodes to nothing: some Plex endpoints answer
+// 200 with no payload instead of an empty container. Trailing
+// non-whitespace after the JSON value stays an error, matching
+// json.Unmarshal's contract.
+func (c *Client) decodeBody(method, path string, body io.Reader, maxBytes int64, result any) error {
+	cr := &countingReader{r: io.LimitReader(body, maxBytes+1)}
+	dec := json.NewDecoder(cr)
+	decErr := dec.Decode(result)
+
+	overCap := func() error {
+		// Operator-facing breadcrumb: an over-cap body almost always means
+		// an unfiltered or oversized response class, worth surfacing in
+		// logs beyond the one failed call. Routed through the configured
+		// logger.
+		c.logger.Warn("plexapi: response exceeded read cap",
+			"method", method, "path", path, "cap_bytes", maxBytes)
+		return &ResponseTooLargeError{Path: path, Limit: maxBytes}
 	}
-	if len(body) == 0 {
+	// drain consumes the capped remainder without buffering (best-effort:
+	// a read error mid-drain just stops the count). The buffered variant
+	// always read the whole capped body BEFORE classifying, so over-cap
+	// had to win over any decode error — a decoder that aborts on the
+	// first garbage byte of a 50 MB body must still report the typed
+	// over-cap error, not the garbage. The drain restores that ordering
+	// while keeping the streaming memory profile.
+	drain := func() { _, _ = io.Copy(io.Discard, cr) }
+
+	if decErr == nil {
+		// The decoder stops at the end of the first JSON value; reject
+		// trailing non-whitespace like json.Unmarshal does. Probe from the
+		// decoder's buffer BEFORE draining the raw remainder (the drain
+		// bypasses that buffer).
+		_, tokErr := dec.Token()
+		drain()
+		if cr.n > maxBytes {
+			return overCap()
+		}
+		if !errors.Is(tokErr, io.EOF) {
+			return fmt.Errorf("plex %s %s: decoding response: trailing data after JSON value", method, path)
+		}
 		return nil
 	}
-	if err := json.Unmarshal(body, result); err != nil {
-		return fmt.Errorf("plex %s %s: decoding response: %w", method, path, err)
+	drain()
+	switch {
+	case cr.n > maxBytes:
+		return overCap()
+	case errors.Is(decErr, io.EOF) && cr.n == 0:
+		return nil // empty body
+	case errors.Is(decErr, io.EOF), errors.Is(decErr, io.ErrUnexpectedEOF), isJSONError(decErr):
+		return fmt.Errorf("plex %s %s: decoding response: %w", method, path, decErr)
+	default:
+		return fmt.Errorf("plex %s %s: reading body: %w", method, path, decErr)
 	}
-	return nil
+}
+
+// isJSONError reports whether err is a JSON parse/shape error (as opposed
+// to a transport read error surfaced through the decoder).
+func isJSONError(err error) bool {
+	var syn *json.SyntaxError
+	var typ *json.UnmarshalTypeError
+	return errors.As(err, &syn) || errors.As(err, &typ)
+}
+
+// countingReader counts the bytes read through it, so decodeBody can
+// detect an over-cap body after a streaming decode.
+type countingReader struct {
+	r io.Reader
+	n int64
+}
+
+func (cr *countingReader) Read(p []byte) (int, error) {
+	n, err := cr.r.Read(p)
+	cr.n += int64(n)
+	return n, err
 }
 
 // Get fetches a server-relative path and decodes the JSON response into
@@ -402,36 +480,37 @@ func (c *Client) put(ctx context.Context, path string) error {
 	return c.do(ctx, http.MethodPut, path, c.maxBody, nil)
 }
 
-// FetchMetadata fetches a server-relative path and decodes the
+// FetchMetadata fetches a general-cap endpoint and decodes the
 // {"MediaContainer":{"Metadata":[...]}} envelope — the dominant Plex
 // response shape — into the caller-owned item type T. It is the exported
 // decode kernel for consumers that keep their own domain models: the same
 // generic the typed Item methods are built on (Go methods cannot be
 // type-parameterized, so it is a package function taking the client).
-// Compose it with the path builders (HistoryPath, MetadataPath, ...) so
-// the wire grammar stays owned by this package. Applies the general read
-// cap (WithMaxBodyBytes); use FetchMetadataList for full section listings.
-func FetchMetadata[T any](ctx context.Context, c *Client, path string) ([]T, error) {
-	return fetchMetadata[T](ctx, c, path, c.maxBody)
+// Compose it with the path builders (HistoryPath, MetadataPath, ...): the
+// builder's return type carries the endpoint's read-cap class, so a
+// listing-sized endpoint cannot compile against the general cap — use
+// FetchMetadataList for the ListPath builders (SectionItemsPath,
+// RecentlyAddedPath).
+func FetchMetadata[T any](ctx context.Context, c *Client, path Path) ([]T, error) {
+	return fetchMetadata[T](ctx, c, string(path), c.maxBody)
 }
 
 // FetchMetadataList is FetchMetadata under the large-listing read cap
-// (WithMaxListBodyBytes) — for full section listings (SectionItemsPath),
-// which on a big library are an order of magnitude larger than any other
-// Plex response.
-func FetchMetadataList[T any](ctx context.Context, c *Client, path string) ([]T, error) {
-	return fetchMetadata[T](ctx, c, path, c.maxListBody)
+// (WithMaxListBodyBytes). It accepts only ListPath — the full-listing
+// endpoints (SectionItemsPath, RecentlyAddedPath), whose responses on a big
+// library are an order of magnitude larger than any other Plex response.
+func FetchMetadataList[T any](ctx context.Context, c *Client, path ListPath) ([]T, error) {
+	return fetchMetadata[T](ctx, c, string(path), c.maxListBody)
 }
 
-// FetchDirectory fetches a server-relative path and decodes the
+// FetchDirectory fetches a general-cap endpoint and decodes the
 // {"MediaContainer":{"Directory":[...]}} envelope (library sections) into
-// the caller-owned type T, under the general read cap. The Directory
-// counterpart of FetchMetadata.
-func FetchDirectory[T any](ctx context.Context, c *Client, path string) ([]T, error) {
+// the caller-owned type T. The Directory counterpart of FetchMetadata.
+func FetchDirectory[T any](ctx context.Context, c *Client, path Path) ([]T, error) {
 	var resp MC[struct {
 		Directory []T `json:"Directory"`
 	}]
-	if err := c.do(ctx, http.MethodGet, path, c.maxBody, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, string(path), c.maxBody, &resp); err != nil {
 		return nil, err
 	}
 	return resp.MediaContainer.Directory, nil

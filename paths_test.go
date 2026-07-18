@@ -21,55 +21,55 @@ func TestPathBuilders(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "sessions", build: func() (string, error) { return SessionsPath(), nil },
+			name: "sessions", build: func() (string, error) { return string(SessionsPath()), nil },
 			want: "/status/sessions",
 		},
 		{
-			name: "sections", build: func() (string, error) { return SectionsPath(), nil },
+			name: "sections", build: func() (string, error) { return string(SectionsPath()), nil },
 			want: "/library/sections",
 		},
 		{
-			name: "history", build: func() (string, error) { return HistoryPath(1700000000), nil },
+			name: "history", build: func() (string, error) { return string(HistoryPath(1700000000)), nil },
 			want: "/status/sessions/history/all?sort=viewedAt:desc&viewedAt>=1700000000",
 		},
 		{
-			name: "section items", build: func() (string, error) { return SectionItemsPath("2") },
+			name: "section items", build: func() (string, error) { p, err := SectionItemsPath("2"); return string(p), err },
 			want: "/library/sections/2/all",
 		},
 		{
-			name: "section items invalid key", build: func() (string, error) { return SectionItemsPath("2; DROP") },
+			name: "section items invalid key", build: func() (string, error) { p, err := SectionItemsPath("2; DROP"); return string(p), err },
 			wantErr: true,
 		},
 		{
-			name: "recently added", build: func() (string, error) { return RecentlyAddedPath("5", 4, 1700000000) },
+			name: "recently added", build: func() (string, error) { p, err := RecentlyAddedPath("5", 4, 1700000000); return string(p), err },
 			want: "/library/sections/5/all?type=4&sort=addedAt:desc&addedAt>=1700000000",
 		},
 		{
-			name: "recently added invalid key", build: func() (string, error) { return RecentlyAddedPath("abc", 4, 0) },
+			name: "recently added invalid key", build: func() (string, error) { p, err := RecentlyAddedPath("abc", 4, 0); return string(p), err },
 			wantErr: true,
 		},
 		{
-			name: "metadata", build: func() (string, error) { return MetadataPath("42") },
+			name: "metadata", build: func() (string, error) { p, err := MetadataPath("42"); return string(p), err },
 			want: "/library/metadata/42",
 		},
 		{
-			name: "metadata invalid key", build: func() (string, error) { return MetadataPath("../etc") },
+			name: "metadata invalid key", build: func() (string, error) { p, err := MetadataPath("../etc"); return string(p), err },
 			wantErr: true,
 		},
 		{
-			name: "children", build: func() (string, error) { return ChildrenPath("7") },
+			name: "children", build: func() (string, error) { p, err := ChildrenPath("7"); return string(p), err },
 			want: "/library/metadata/7/children",
 		},
 		{
-			name: "children invalid key", build: func() (string, error) { return ChildrenPath("x") },
+			name: "children invalid key", build: func() (string, error) { p, err := ChildrenPath("x"); return string(p), err },
 			wantErr: true,
 		},
 		{
-			name: "all leaves", build: func() (string, error) { return AllLeavesPath("7") },
+			name: "all leaves", build: func() (string, error) { p, err := AllLeavesPath("7"); return string(p), err },
 			want: "/library/metadata/7/allLeaves",
 		},
 		{
-			name: "all leaves invalid key", build: func() (string, error) { return AllLeavesPath("") },
+			name: "all leaves invalid key", build: func() (string, error) { p, err := AllLeavesPath(""); return string(p), err },
 			wantErr: true,
 		},
 	}
@@ -95,6 +95,46 @@ func TestPathBuilders(t *testing.T) {
 				t.Errorf("path %q URL-encodes the > operator; Plex silently ignores encoded operators", got)
 			}
 		})
+	}
+}
+
+// TestBuilderCapClasses pins each builder's descriptor type — the
+// compile-time contract binding an endpoint to its read-cap class, so the
+// same endpoint cannot silently read under two different caps at different
+// call sites (the drift that put a consumer's RecentlyAdded under the
+// general cap while the typed method used the list cap).
+func TestBuilderCapClasses(t *testing.T) {
+	requirePath := func(Path) {}
+	requireListPath := func(ListPath) {}
+
+	requirePath(SessionsPath())
+	requirePath(SectionsPath())
+	requirePath(HistoryPath(0)) // deliberate: the general cap is the unfiltered-fallback tripwire
+
+	if p, err := SectionItemsPath("1"); err != nil {
+		t.Fatal(err)
+	} else {
+		requireListPath(p)
+	}
+	if p, err := RecentlyAddedPath("1", 4, 0); err != nil {
+		t.Fatal(err)
+	} else {
+		requireListPath(p)
+	}
+	if p, err := MetadataPath("1"); err != nil {
+		t.Fatal(err)
+	} else {
+		requirePath(p)
+	}
+	if p, err := ChildrenPath("1"); err != nil {
+		t.Fatal(err)
+	} else {
+		requirePath(p)
+	}
+	if p, err := AllLeavesPath("1"); err != nil {
+		t.Fatal(err)
+	} else {
+		requirePath(p)
 	}
 }
 

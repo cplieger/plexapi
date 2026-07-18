@@ -1,6 +1,7 @@
 package plexapi
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -338,19 +339,6 @@ func TestIdentityAndAdminAccount(t *testing.T) {
 	}
 }
 
-func TestMyPlexUsernameEnvelope(t *testing.T) {
-	srv, _ := fixtureServer(t, map[string]string{
-		"/myplex/account": `{"MyPlex":{"username":"admin@example.com"}}`,
-	})
-	name, err := newTestClient(t, srv).MyPlexUsername(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if name != "admin@example.com" {
-		t.Errorf("MyPlexUsername = %q, want admin@example.com", name)
-	}
-}
-
 // TestAdminAccountPlaceholderNeverMatches pins the exact production
 // failure: an accounts list whose only empty-name entry is the id-0
 // placeholder must never resolve as the admin when the owner is absent.
@@ -478,8 +466,11 @@ func TestSharedServers(t *testing.T) {
 		defer srv.Close()
 		_, err := NewTV("t", WithTVBaseURL(srv.URL)).SharedServers(t.Context(), "m")
 		var se *StatusError
-		if err == nil || !strings.Contains(err.Error(), "401") {
-			t.Errorf("err = %v, want 401 StatusError (as=%v)", err, se)
+		if err == nil || !errors.As(err, &se) || se.Code != 401 {
+			t.Fatalf("err = %v, want 401 StatusError", err)
+		}
+		if se.Path != "/api/servers/m/shared_servers" {
+			t.Errorf("StatusError.Path = %q, want the real request path", se.Path)
 		}
 	})
 	t.Run("machine id is path-escaped", func(t *testing.T) {
