@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/cplieger/httpx/v2"
+	"github.com/cplieger/httpx/v3"
 )
 
 // plexTVBase is the plex.tv API origin. Tests point a TV client at an
@@ -76,8 +76,8 @@ func NewTV(token string, opts ...TVOption) *TV {
 // plex.tv sometimes returns instead of an empty <MediaContainer/>) yields
 // zero servers, not a parse error.
 func (t *TV) SharedServers(ctx context.Context, machineIdentifier string) ([]SharedServer, error) {
-	apiURL := t.base + "/api/servers/" + url.PathEscape(machineIdentifier) + "/shared_servers"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, http.NoBody)
+	apiPath := "/api/servers/" + url.PathEscape(machineIdentifier) + "/shared_servers"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, t.base+apiPath, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -92,13 +92,13 @@ func (t *TV) SharedServers(ctx context.Context, machineIdentifier string) ([]Sha
 
 	if resp.StatusCode != http.StatusOK {
 		httpx.DrainClose(resp.Body)
-		return nil, &StatusError{Method: http.MethodGet, Path: "plex.tv shared_servers", Status: resp.Status, Code: resp.StatusCode}
+		return nil, &StatusError{Method: http.MethodGet, Path: apiPath, Status: resp.Status, Code: resp.StatusCode}
 	}
 	body, err := httpx.ReadLimitedBody(resp.Body, DefaultMaxBodyBytes)
 	if err != nil {
 		var tooLarge *httpx.ResponseTooLargeError
 		if errors.As(err, &tooLarge) {
-			return nil, &ResponseTooLargeError{Path: "plex.tv shared_servers", Limit: DefaultMaxBodyBytes}
+			return nil, &ResponseTooLargeError{Path: apiPath, Limit: DefaultMaxBodyBytes}
 		}
 		return nil, fmt.Errorf("plex.tv shared_servers: reading body: %w", err)
 	}

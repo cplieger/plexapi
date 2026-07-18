@@ -55,9 +55,11 @@
 // Consumers that decode into their own domain types do not give up the
 // package's wire-grammar ownership: the exported path builders
 // (SessionsPath, HistoryPath, MetadataPath, ...) carry the endpoint paths,
-// rating-key validation, and the literal filter-operator contract, and
+// rating-key validation, the literal filter-operator contract, and — via
+// their Path/ListPath return types — each endpoint's read-cap class, and
 // FetchMetadata / FetchMetadataList / FetchDirectory decode the
 // MediaContainer envelopes into any caller-owned type over the same
-// hardened transport. The typed Item methods are composition over exactly
-// these pieces.
+// hardened transport, with the cap class enforced at compile time (a
+// listing endpoint cannot be fetched under the general cap by accident).
+// The typed Item methods are composition over exactly these pieces.
 package plexapi

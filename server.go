@@ -28,24 +28,6 @@ func (c *Client) Accounts(ctx context.Context) ([]Account, error) {
 	return resp.MediaContainer.Account, nil
 }
 
-// MyPlexUsername returns the username of the plex.tv account the server is
-// signed into (GET /myplex/account). The payload arrives wrapped in a
-// {"MyPlex":{...}} envelope, and on current servers the username field
-// carries the plex.tv account identity in email form — it does NOT match
-// the owner's server-local display name in Accounts, so it must never be
-// used to identify the owner among system accounts (see AdminAccount).
-func (c *Client) MyPlexUsername(ctx context.Context) (string, error) {
-	var resp struct {
-		MyPlex struct {
-			Username string `json:"username"`
-		} `json:"MyPlex"`
-	}
-	if err := c.Get(ctx, "/myplex/account", &resp); err != nil {
-		return "", err
-	}
-	return resp.MyPlex.Username, nil
-}
-
 // ownerAccountID is the server-local system-account id Plex reserves for
 // the server owner in GET /accounts (id 0 is the managed placeholder with
 // an empty name). Sessions and watch history report the owner under this

@@ -84,7 +84,7 @@ func (c *Client) ItemExists(ctx context.Context, key RatingKey) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	err = c.do(ctx, http.MethodGet, path, c.maxBody, nil)
+	err = c.do(ctx, http.MethodGet, string(path), c.maxBody, nil)
 	switch {
 	case err == nil:
 		return true, nil
@@ -102,7 +102,7 @@ func (c *Client) ItemsByGUID(ctx context.Context, guid string) ([]Item, error) {
 	if guid == "" {
 		return nil, nil
 	}
-	return FetchMetadata[Item](ctx, c, "/library/all?"+url.Values{"guid": {guid}}.Encode())
+	return FetchMetadata[Item](ctx, c, Path("/library/all?"+url.Values{"guid": {guid}}.Encode()))
 }
 
 // ShowForEpisodeGUID resolves an episode GUID to the rating key of the show
@@ -152,7 +152,7 @@ func (c *Client) ContainerTotalSize(ctx context.Context, section RatingKey, meta
 	var resp MC[struct {
 		TotalSize int64 `json:"totalSize"`
 	}]
-	if err := c.Get(ctx, path+"?"+q.Encode(), &resp); err != nil {
+	if err := c.Get(ctx, string(path)+"?"+q.Encode(), &resp); err != nil {
 		return 0, err
 	}
 	return resp.MediaContainer.TotalSize, nil

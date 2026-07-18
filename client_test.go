@@ -189,6 +189,67 @@ func TestDoBodyCap(t *testing.T) {
 	}
 }
 
+// TestStreamDecodeEdges pins the streaming-decode contract of decodeBody:
+// over-cap always wins as the typed error (valid or truncated JSON alike,
+// including via trailing content), exactly-at-cap decodes, and trailing
+// non-whitespace stays an error like json.Unmarshal's.
+func TestStreamDecodeEdges(t *testing.T) {
+	serve := func(t *testing.T, payload string) *Client {
+		t.Helper()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(payload))
+		}))
+		t.Cleanup(srv.Close)
+		return newTestClient(t, srv, WithMaxBodyBytes(64))
+	}
+	var out map[string]any
+
+	t.Run("over cap with valid JSON prefix is the typed error", func(t *testing.T) {
+		c := serve(t, `{"pad":"`+strings.Repeat("x", 200)+`"}`)
+		var tle *ResponseTooLargeError
+		if err := c.Get(t.Context(), "/x", &out); !errors.As(err, &tle) || tle.Limit != 64 {
+			t.Errorf("err = %v, want ResponseTooLargeError limit 64", err)
+		}
+	})
+	t.Run("valid value with huge trailing content is over-cap not trailing", func(t *testing.T) {
+		c := serve(t, `{}`+strings.Repeat(" ", 200))
+		var tle *ResponseTooLargeError
+		if err := c.Get(t.Context(), "/x", &out); !errors.As(err, &tle) {
+			t.Errorf("err = %v, want ResponseTooLargeError", err)
+		}
+	})
+	t.Run("exactly at cap decodes", func(t *testing.T) {
+		payload := `{"pad":"` + strings.Repeat("x", 64-10) + `"}`
+		if int64(len(payload)) != 64 {
+			t.Fatalf("fixture drifted: len = %d, want 64", len(payload))
+		}
+		c := serve(t, payload)
+		if err := c.Get(t.Context(), "/x", &out); err != nil {
+			t.Errorf("exactly-at-cap Get: %v", err)
+		}
+	})
+	t.Run("trailing non-whitespace within cap is a decode error", func(t *testing.T) {
+		c := serve(t, `{} garbage`)
+		err := c.Get(t.Context(), "/x", &out)
+		if err == nil || !strings.Contains(err.Error(), "decoding response") {
+			t.Errorf("err = %v, want a decoding-response error", err)
+		}
+	})
+	t.Run("truncated JSON within cap is a decode error", func(t *testing.T) {
+		c := serve(t, `{"pad":`)
+		err := c.Get(t.Context(), "/x", &out)
+		if err == nil || !strings.Contains(err.Error(), "decoding response") {
+			t.Errorf("err = %v, want a decoding-response error", err)
+		}
+	})
+	t.Run("trailing whitespace within cap decodes clean", func(t *testing.T) {
+		c := serve(t, `{}   `)
+		if err := c.Get(t.Context(), "/x", &out); err != nil {
+			t.Errorf("trailing-whitespace Get: %v", err)
+		}
+	})
+}
+
 // TestGetRetriesTransient pins transparent retry: a 503 then 200 sequence
 // succeeds without caller involvement.
 func TestGetRetriesTransient(t *testing.T) {
@@ -267,7 +328,7 @@ func TestForToken(t *testing.T) {
 	if gotToken != "user-token" {
 		t.Errorf("token = %q, want user-token", gotToken)
 	}
-	if u.HTTPClient() != c.HTTPClient() {
+	if u.httpClient != c.httpClient {
 		t.Error("ForToken did not share the transport")
 	}
 	if c.Token() != "test-token" {
@@ -275,24 +336,32 @@ func TestForToken(t *testing.T) {
 	}
 }
 
-func TestRequestContextDefaultTimeout(t *testing.T) {
-	c, err := New("http://plex:32400", "tok", WithTimeout(time.Hour))
-	if err != nil {
-		t.Fatal(err)
+// TestWithTimeoutDefaultOnlyWithoutCallerDeadline pins the request-timeout
+// wiring end-to-end (via httpx.ContextWithDefaultTimeout): the WithTimeout
+// default bounds a request only when the caller brought no deadline, and a
+// caller deadline is never undercut by a smaller default.
+func TestWithTimeoutDefaultOnlyWithoutCallerDeadline(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-time.After(150 * time.Millisecond):
+			_, _ = w.Write([]byte(`{}`))
+		case <-r.Context().Done():
+		}
+	}))
+	defer srv.Close()
+	c := newTestClient(t, srv, WithTimeout(30*time.Millisecond), WithMaxAttempts(1))
+
+	// No caller deadline: the 30ms default applies and the slow response
+	// exceeds it.
+	if err := c.Get(context.Background(), "/", nil); err == nil {
+		t.Error("expected the WithTimeout default to bound the request")
 	}
-	// No caller deadline: the default applies.
-	ctx, cancel := c.requestContext(context.Background())
+	// Generous caller deadline: authoritative, never undercut by the 30ms
+	// default, so the slow response completes.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if _, ok := ctx.Deadline(); !ok {
-		t.Error("no deadline applied without caller deadline")
-	}
-	// Caller deadline: preserved, not undercut.
-	caller, cancel2 := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel2()
-	ctx2, cancel3 := c.requestContext(caller)
-	defer cancel3()
-	if d, _ := ctx2.Deadline(); time.Until(d) > 2*time.Minute {
-		t.Error("caller deadline was replaced by a longer default")
+	if err := c.Get(ctx, "/", nil); err != nil {
+		t.Errorf("caller deadline was undercut by the smaller default: %v", err)
 	}
 }
 

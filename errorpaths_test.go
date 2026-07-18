@@ -25,7 +25,6 @@ func TestEndpointsPropagateServerErrors(t *testing.T) {
 	}{
 		{"Identity", func() error { _, err := c.Identity(ctx); return err }},
 		{"Accounts", func() error { _, err := c.Accounts(ctx); return err }},
-		{"MyPlexUsername", func() error { _, err := c.MyPlexUsername(ctx); return err }},
 		{"AdminAccount", func() error { _, err := c.AdminAccount(ctx); return err }},
 		{"Providers", func() error { _, err := c.Providers(ctx); return err }},
 		{"StatisticsBandwidth", func() error { _, err := c.StatisticsBandwidth(ctx, 6); return err }},
