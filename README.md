@@ -9,10 +9,9 @@
 > Typed, resilient Go client for the Plex Media Server HTTP API
 
 Library metadata, sessions, watch history, server identity and statistics,
-GUID resolution, and per-user stream selection — over a transport that
-defends the `X-Plex-Token` by construction and retries transient failures
-transparently. Plus a small client for the plex.tv account API
-(shared-server user tokens).
+GUID resolution, and per-user stream selection. The transport defends the
+`X-Plex-Token` by construction and retries transient failures transparently.
+Plus a small client for the plex.tv account API (shared-server user tokens).
 
 One runtime dependency: [httpx](https://github.com/cplieger/httpx) (retry
 round-tripper, CA pinning, bounded reads).
@@ -63,7 +62,7 @@ client, err := plexapi.New(serverURL, token, plexapi.WithCACertPEM(pem))
 
 The token grants full server access; the client defends it on every request:
 
-- Token in the `X-Plex-Token` header only — never a query string, so URL
+- Token in the `X-Plex-Token` header only, never a query string, so URL
   logging can't leak it.
 - Redirects are refused outright. Go's default policy forwards custom
   headers on cross-origin redirects, so a hostile 302 would exfiltrate the
@@ -84,40 +83,45 @@ The token grants full server access; the client defends it on every request:
 - GETs ride an httpx retry round-tripper: 429/502/503/504 and transient
   transport errors retried with jittered exponential backoff, honoring
   `Retry-After` on 429. `WithMaxAttempts(1)` disables retries.
-- Writes (`PUT` stream selection) are applied at most once — never retried.
+- Writes (`PUT` stream selection) are applied at most once, never retried.
 - A per-attempt response-header timeout makes a stalled attempt fail as a
-  retryable error instead of hanging the sequence; a per-request default
+  retryable error instead of hanging the sequence. A per-request default
   timeout (`WithTimeout`, default 2m) applies only when the caller's context
-  has no deadline, so a caller deadline is always the authoritative budget.
+  has no deadline; a caller deadline is always the authoritative budget.
 - Response bodies are size-capped before decode (defaults 10 MB; 40 MB for
   full section listings; both configurable), with overflow reported as
   `*ResponseTooLargeError` rather than a truncated decode.
 
 ## API
 
-- **Constructor:** `New(baseURL, token, ...Option)` — options `WithCACertPEM`, `WithMaxAttempts` (total, default 3), `WithBaseDelay`, `WithTimeout`, `WithMaxBodyBytes`/`WithMaxListBodyBytes` (read caps), `WithLogger` (routes the client's own diagnostics; default `slog.Default()`), `WithOnRetry` (retry-counter hook), `WithHTTPClient` (caller-owned transport, tests).
-- **Derived clients:** `(*Client).ForToken(token)` — same server + shared connection pool, different token (the per-user write path). `(*Client).BaseTransport()` — an independent clone of the hardened base transport (CA trust, per-attempt header timeout, no retry wrapper) for a caller-owned protocol upgrade such as a WebSocket dial; nil under `WithHTTPClient`. `(*Client).RedirectPolicy()` — the client's CheckRedirect function, the policy half of the same dialer seam (the live `*http.Client` is not exposed).
-- **Wire-grammar layer:** path builders `SessionsPath()`, `SectionsPath()`, `HistoryPath(sinceUnix)`, `SectionItemsPath(key)`, `RecentlyAddedPath(key, type, sinceUnix)`, `MetadataPath(key)`, `ChildrenPath(key)`, `AllLeavesPath(key)` own every endpoint path, the rating-key validation, the literal filter-operator contract, and — through their typed returns (`Path` for general-cap endpoints, `ListPath` for full listings) — each endpoint's read-cap class; generic decoders `FetchMetadata[T]` / `FetchDirectory[T]` (accepting `Path`) and `FetchMetadataList[T]` (accepting only `ListPath`) decode the MediaContainer envelopes into caller-owned types over the same hardened transport, with the cap class enforced at compile time. Consumers with their own domain models compose these instead of hand-building paths; the typed `Item` methods are composition over exactly these pieces.
+- **Constructor:** `New(baseURL, token, ...Option)`. Options: `WithCACertPEM`, `WithMaxAttempts` (total, default 3), `WithBaseDelay`, `WithTimeout`, `WithMaxBodyBytes`/`WithMaxListBodyBytes` (read caps), `WithLogger` (routes the client's own diagnostics; default `slog.Default()`), `WithOnRetry` (retry-counter hook), `WithHTTPClient` (caller-owned transport, tests).
+- **Derived clients:** `(*Client).ForToken(token)`: same server and shared connection pool, different token (the per-user write path). `(*Client).BaseTransport()`: an independent clone of the hardened base transport (CA trust, per-attempt header timeout, no retry wrapper) for a caller-owned protocol upgrade such as a WebSocket dial; nil under `WithHTTPClient`. `(*Client).RedirectPolicy()`: the client's CheckRedirect function, for the same dial path.
+- **Wire-grammar layer:** path builders `SessionsPath()`, `SectionsPath()`, `HistoryPath(sinceUnix)`, `SectionItemsPath(key)`, `RecentlyAddedPath(key, type, sinceUnix)`, `MetadataPath(key)`, `ChildrenPath(key)`, `AllLeavesPath(key)` own every endpoint path, the rating-key validation, and the filter-operator contract. Their typed returns carry each endpoint's read-cap class: `Path` (general cap) or `ListPath` (list cap). Generic decoders `FetchMetadata[T]` / `FetchDirectory[T]` (accepting `Path`) and `FetchMetadataList[T]` (accepting only `ListPath`) decode the MediaContainer envelopes into caller-owned types over the same hardened transport, so a cap-class mismatch is a compile error. Consumers with their own domain models compose these instead of hand-building paths.
 - **Library:** `Sections`, `SectionItems(key)`, `RecentlyAdded(key, type, sinceUnix)`, `Metadata(key)`, `Children(key)`, `AllLeaves(key)`, `ItemExists(key)` (fail-closed: an undetermined check is an error, never "gone"), `ItemsByGUID(guid)`, `ShowForEpisodeGUID(guid)` (ambiguity yields `""`, refusing to guess), `ContainerTotalSize(section, type)` (validated section key; `type` 0 = unfiltered).
-- **Sessions & history:** `Sessions()`, `History(sinceUnix)` — history and recently-added filters use Plex's literal single-char `>=` operator (a malformed or encoded operator is silently ignored by Plex, returning the full unfiltered set; the literal form is a pinned wire contract).
+- **Sessions & history:** `Sessions()`, `History(sinceUnix)`. History and recently-added filters use Plex's literal single-char `>=` operator; a malformed or encoded operator is silently ignored by Plex, returning the full unfiltered set, so the literal form is pinned by tests.
 - **Server:** `Identity()`, `Accounts()`, `AdminAccount()`, `Providers()` (per-library duration/storage), `StatisticsResources(timespan)` / `StatisticsBandwidth(timespan)` (Plex Pass; 404 → `ErrNotFound` for graceful degradation).
-- **Stream selection:** `SetAudioStream(partID, streamID)`, `SetSubtitleStream(partID, streamID)`, `DisableSubtitles(partID)` — user-scoped by requesting token.
+- **Stream selection:** `SetAudioStream(partID, streamID)`, `SetSubtitleStream(partID, streamID)`, `DisableSubtitles(partID)`; user-scoped by requesting token.
 - **plex.tv:** `NewTV(token, ...TVOption)`, `(*TV).SharedServers(machineID)`.
 - **Types:** `MC[T]` (the MediaContainer envelope, for `Get` escape-hatch decoding), `Item` (Plex's polymorphic metadata item: library entries, sessions, and history rows are one wire shape), `FlexInt` (absorbs Plex's number-or-quoted-string fields), `RatingKey` (validated identifier), the `Media`→`Part`→`Stream` graph, `Section`, `ServerIdentity`, `Account`, `SharedServer`, statistics types.
 - **Errors:** `ErrNotFound` + `IsNotFound(err)`, `StatusError{Method, Path, Status, Code}`, `ResponseTooLargeError{Path, Limit}`, `IsConfigError(err)` (a 4xx other than 408/429 is a configuration/authorization failure that will not self-heal; everything else is transient).
 - **Escape hatch:** `Get(ctx, path, &result)` for endpoints without a typed method, with the same hardening (path guard, redirect refusal, retries, body caps).
 
-## Unsupported by design
+## Unsupported by Design
 
 Deliberate non-goals, not TODOs:
 
 | Feature | Rationale |
 | --- | --- |
 | Library management writes (edit metadata, delete items, scan triggers) | The consumers are read-and-select tools; the only mutations modeled are stream selections. |
-| WebSocket notifications | A different transport with app-specific reconnect policy; consumers own it (the client exposes `BaseURL`/`Token`, `RedirectPolicy()` for the policy, and `BaseTransport()` hands a dialer the hardened base transport — CA trust included — without the retry wrapper). |
+| WebSocket notifications | A different transport with app-specific reconnect policy; consumers own it. `BaseTransport()` and `RedirectPolicy()` (see API above) let a dialer share the hardened transport. |
 | Full plex.tv account surface (devices, friends, PINs) | `SharedServers` is the one account call a consumer needs. |
 | Insecure TLS (`InsecureSkipVerify`) | Pin the CA instead; verification never turns off. |
 | Response caching / request coalescing | Callers own their caching layer; the client stays lock-free and stateless per request. |
+
+## Contributing
+
+Issues and PRs are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
+conventions and how to run the checks locally.
 
 ## Disclaimer
 
@@ -132,4 +136,4 @@ supervises implementation, and makes all final decisions.
 
 ## License
 
-GPL-3.0 — see [LICENSE](LICENSE).
+GPL-3.0. See [LICENSE](LICENSE).

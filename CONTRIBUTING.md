@@ -11,17 +11,18 @@ Endpoints are added when a real consumer needs them, implemented completely
 or not at all. The current surface covers library metadata (sections, items,
 children/leaves, GUID resolution), sessions and history, server identity and
 statistics, per-user stream selection, and the plex.tv shared-servers call.
-The README's "Unsupported by design" table is the contract — notably: no
+The README's "Unsupported by Design" table is the contract. Notably: no
 library-management writes, no WebSocket layer (consumers own reconnect
-policy; the client exposes `BaseURL`/`HTTPClient` so a dialer can share the
-transport), and no TLS verification bypass, ever.
+policy; the client exposes `BaseURL`, `BaseTransport()`, and
+`RedirectPolicy()` so a dialer can share the hardened transport), and no TLS
+verification bypass, ever.
 
 ## Security invariants (do not weaken)
 
 These hold on every request, by construction, and changing any of them is a
 breaking security review, not a refactor:
 
-- The `X-Plex-Token` travels only in a request header — never a query
+- The `X-Plex-Token` travels only in a request header: never a query
   string, never a log line, never an error string.
 - Redirects are refused outright (`http.ErrUseLastResponse`): Go forwards
   custom headers on cross-origin redirects, so following one could hand the
