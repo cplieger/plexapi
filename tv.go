@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cplieger/httpx/v3"
+	"github.com/cplieger/xmlx"
 )
 
 // plexTVBase is the plex.tv API origin. Tests point a TV client at an
@@ -29,6 +30,20 @@ type SharedServer struct {
 type sharedServersXML struct {
 	XMLName      xml.Name       `xml:"MediaContainer"`
 	SharedServer []SharedServer `xml:"SharedServer"`
+}
+
+// sharedServersLimits bounds the shared_servers document before encoding/xml
+// tokenizes it. The shape is fixed and tiny: one MediaContainer holding a flat
+// list of attribute-only SharedServer elements, so every bound sits far above
+// the real contract while still rejecting the amplification a wire-only byte cap
+// admits. MaxElements is generous against the largest plausible share list; a
+// Plex account with more shares than this has bigger problems than a parse.
+var sharedServersLimits = xmlx.Limits{
+	MaxTextRunBytes: 8 << 10,
+	MaxTokenBytes:   16 << 10,
+	MaxTagAttrs:     32,
+	MaxDepth:        8,
+	MaxElements:     50_000,
 }
 
 // TV is a client for the plex.tv account API (as opposed to a local Plex
@@ -104,6 +119,16 @@ func (t *TV) SharedServers(ctx context.Context, machineIdentifier string) ([]Sha
 	}
 	if len(body) == 0 {
 		return nil, nil
+	}
+	// The byte cap above bounds the WIRE, not the decode. encoding/xml
+	// materializes each token before this package can inspect it, so a
+	// wire-capped body can still force one cap-sized token allocation, and a
+	// body of tiny elements nested past any real depth grows the decoder's
+	// element stack one heap entry at a time. The preflight rejects a document
+	// already outside the shared_servers contract in one allocation-free scan
+	// over bytes we already hold.
+	if err := xmlx.Preflight(body, sharedServersLimits); err != nil {
+		return nil, fmt.Errorf("plex.tv shared_servers: %w", err)
 	}
 	var result sharedServersXML
 	if err := xml.Unmarshal(body, &result); err != nil {
