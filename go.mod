@@ -4,6 +4,8 @@ go 1.26.5
 
 require github.com/cplieger/httpx/v3 v3.2.0
 
+require github.com/cplieger/xmlx v1.0.0 // indirect
+
 // v1.0.0 shipped same-day API that v1.1.0 reshapes: IsFatalStartup was
 // renamed IsConfigError and the read caps became configurable options.
 // Nothing external consumed v1.0.0; use v1.1.0 or later.

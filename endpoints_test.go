@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/cplieger/xmlx"
 )
 
 // fixtureServer serves canned JSON per path prefix and records requests.
@@ -457,6 +459,46 @@ func TestSharedServers(t *testing.T) {
 		got, err := NewTV("t", WithTVBaseURL(srv.URL)).SharedServers(t.Context(), "m")
 		if err != nil || got != nil {
 			t.Errorf("= %v, %v", got, err)
+		}
+	})
+	t.Run("amplifying document rejected before the decode", func(t *testing.T) {
+		// A body well inside the wire cap whose nesting would grow the
+		// decoder's element stack one heap entry per three bytes. The preflight
+		// refuses it without tokenizing; the caller sees a bounds error, not a
+		// parsed empty list.
+		deep := strings.Repeat("<MediaContainer>", sharedServersLimits.MaxDepth+2)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(deep))
+		}))
+		defer srv.Close()
+		got, err := NewTV("t", WithTVBaseURL(srv.URL)).SharedServers(t.Context(), "m")
+		if got != nil {
+			t.Errorf("SharedServers = %+v, want nil", got)
+		}
+		if !errors.Is(err, xmlx.ErrLimit) {
+			t.Fatalf("err = %v, want an xmlx.ErrLimit", err)
+		}
+		var le *xmlx.LimitError
+		if !errors.As(err, &le) || le.Kind != xmlx.KindDepth {
+			t.Errorf("err = %v, want KindDepth", err)
+		}
+	})
+	t.Run("a real shared_servers document passes the preflight", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+			<MediaContainer friendlyName="srv" identifier="com.plexapp.plugins.library">
+				<SharedServer id="1" username="alice" email="a@example.test" accessToken="tok-a" acceptedAt="1700000000">
+					<Section id="9" key="1" title="Movies" type="movie" shared="1"/>
+				</SharedServer>
+			</MediaContainer>`))
+		}))
+		defer srv.Close()
+		got, err := NewTV("t", WithTVBaseURL(srv.URL)).SharedServers(t.Context(), "m")
+		if err != nil {
+			t.Fatalf("SharedServers = %v, want the document accepted", err)
+		}
+		if len(got) != 1 || got[0].Username != "alice" {
+			t.Errorf("SharedServers = %+v", got)
 		}
 	})
 	t.Run("non-200 is StatusError", func(t *testing.T) {
