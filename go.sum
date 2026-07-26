@@ -1,5 +1,5 @@
-github.com/cplieger/httpx/v3 v3.2.0 h1:vMqF0Bf06gkfJJMfZQNHnHyEnbtLo8DdnqZNLL0D+yE=
-github.com/cplieger/httpx/v3 v3.2.0/go.mod h1:aITrLHd0nPnJ5+Gu76xhRyOChC0KZEBCwslCELPHk+s=
+github.com/cplieger/httpx/v4 v4.1.0 h1:G91soof0rZlKKEDmPFm/TzNmOtaEgwkTUCTrTf1jqMs=
+github.com/cplieger/httpx/v4 v4.1.0/go.mod h1:bfJDGEQRWEwLu6mlwk49PfDIAETABwhlp+DAWFXo8XE=
 github.com/cplieger/xmlx v1.0.0 h1:tdUqGwAQ5kufIWwDJjYnWS2AcXoT5URLpfa5KaDR+CA=
 github.com/cplieger/xmlx v1.0.0/go.mod h1:iZ1VwTghHYMNpbDmwX19wApwlAS+TzWVOV4NCq0zirY=
 pgregory.net/rapid v1.3.0 h1:vBvO0VSqti75J1jjYqpgPNBLKMd1+gxa9fYo7vk/Exc=
