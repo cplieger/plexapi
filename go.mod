@@ -2,7 +2,7 @@ module github.com/cplieger/plexapi
 
 go 1.26.5
 
-require github.com/cplieger/httpx/v4 v4.1.0
+require github.com/cplieger/httpx/v4 v4.2.0
 
 require github.com/cplieger/xmlx v1.0.0
 
