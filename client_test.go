@@ -353,12 +353,12 @@ func TestWithTimeoutDefaultOnlyWithoutCallerDeadline(t *testing.T) {
 
 	// No caller deadline: the 30ms default applies and the slow response
 	// exceeds it.
-	if err := c.Get(context.Background(), "/", nil); err == nil {
+	if err := c.Get(t.Context(), "/", nil); err == nil {
 		t.Error("expected the WithTimeout default to bound the request")
 	}
 	// Generous caller deadline: authoritative, never undercut by the 30ms
 	// default, so the slow response completes.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	if err := c.Get(ctx, "/", nil); err != nil {
 		t.Errorf("caller deadline was undercut by the smaller default: %v", err)
