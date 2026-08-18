@@ -1,6 +1,6 @@
 # plexapi
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/cplieger/plexapi.svg)](https://pkg.go.dev/github.com/cplieger/plexapi)
+[![Go Reference](https://pkg.go.dev/badge/github.com/cplieger/plexapi/v2.svg)](https://pkg.go.dev/github.com/cplieger/plexapi/v2)
 [![Go version](https://img.shields.io/github/go-mod/go-version/cplieger/plexapi)](https://github.com/cplieger/plexapi/blob/main/go.mod)
 [![Test coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/cplieger/plexapi/badges/coverage.json)](https://github.com/cplieger/plexapi/actions/workflows/coverage.yml)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13605/badge)](https://www.bestpractices.dev/projects/13605)
@@ -19,7 +19,7 @@ round-tripper, CA pinning, bounded reads).
 ## Install
 
 ```sh
-go get github.com/cplieger/plexapi@latest
+go get github.com/cplieger/plexapi/v2@latest
 ```
 
 ## Usage
@@ -43,7 +43,7 @@ history, err := client.History(ctx, time.Now().Add(-24*time.Hour).Unix())
 // Per-user stream selection: writes are recorded against the REQUESTING
 // token's user, so select with that user's token.
 userClient := client.ForToken(userToken)
-err = userClient.SetSubtitleStream(ctx, partID, streamID)
+err = userClient.SetSubtitleStream(ctx, plexapi.StreamSelection{PartID: partID, StreamID: streamID})
 
 // plex.tv: the shared users of a server, with their access tokens.
 tv := plexapi.NewTV(adminToken)
@@ -92,6 +92,19 @@ The token grants full server access; the client defends it on every request:
   full section listings; both configurable), with overflow reported as
   `*ResponseTooLargeError` rather than a truncated decode.
 
+## v1 → v2
+
+| v1 | v2 |
+| --- | --- |
+| `github.com/cplieger/plexapi` | `github.com/cplieger/plexapi/v2` in `go.mod` and every import |
+| `SetAudioStream(ctx, partID, streamID)` | `SetAudioStream(ctx, StreamSelection{PartID: …, StreamID: …})` |
+| `SetSubtitleStream(ctx, partID, streamID)` | `SetSubtitleStream(ctx, StreamSelection{PartID: …, StreamID: …})` |
+
+`DisableSubtitles(ctx, partID)` is unchanged. The five remote reads keep their noun names
+(`Identity`, `Accounts`, `Providers`, `SharedServers`, `ContainerTotalSize`): each takes a
+`context.Context` and returns an error, which is Go's cost signal — a rename would restate the
+signature.
+
 ## API
 
 - **Constructor:** `New(baseURL, token, ...Option)`. Options: `WithCACertPEM`, `WithMaxAttempts` (total, default 3), `WithBaseDelay`, `WithTimeout`, `WithMaxBodyBytes`/`WithMaxListBodyBytes` (read caps), `WithLogger` (routes the client's own diagnostics; default `slog.Default()`), `WithOnRetry` (retry-counter hook), `WithHTTPClient` (caller-owned transport, tests).
@@ -100,7 +113,7 @@ The token grants full server access; the client defends it on every request:
 - **Library:** `Sections`, `SectionItems(key)`, `RecentlyAdded(key, type, sinceUnix)`, `Metadata(key)`, `Children(key)`, `AllLeaves(key)`, `ItemExists(key)` (fail-closed: an undetermined check is an error, never "gone"), `ItemsByGUID(guid)`, `ShowForEpisodeGUID(guid)` (ambiguity yields `""`, refusing to guess), `ContainerTotalSize(section, type)` (validated section key; `type` 0 = unfiltered).
 - **Sessions & history:** `Sessions()`, `History(sinceUnix)`. History and recently-added filters use Plex's literal single-char `>=` operator; a malformed or encoded operator is silently ignored by Plex, returning the full unfiltered set, so the literal form is pinned by tests.
 - **Server:** `Identity()`, `Accounts()`, `AdminAccount()`, `Providers()` (per-library duration/storage), `StatisticsResources(timespan)` / `StatisticsBandwidth(timespan)` (Plex Pass; 404 → `ErrNotFound` for graceful degradation).
-- **Stream selection:** `SetAudioStream(partID, streamID)`, `SetSubtitleStream(partID, streamID)`, `DisableSubtitles(partID)`; user-scoped by requesting token.
+- **Stream selection:** `SetAudioStream(StreamSelection{PartID, StreamID})`, `SetSubtitleStream(StreamSelection{…})`, `DisableSubtitles(partID)`; user-scoped by requesting token. The IDs travel as a named-field struct because two adjacent ints transposed cleanly and the request only failed after the round trip.
 - **plex.tv:** `NewTV(token, ...TVOption)`, `(*TV).SharedServers(machineID)`.
 - **Types:** `MC[T]` (the MediaContainer envelope, for `Get` escape-hatch decoding), `Item` (Plex's polymorphic metadata item: library entries, sessions, and history rows are one wire shape), `FlexInt` (absorbs Plex's number-or-quoted-string fields), `RatingKey` (validated identifier), the `Media`→`Part`→`Stream` graph, `Section`, `ServerIdentity`, `Account`, `SharedServer`, statistics types.
 - **Errors:** `ErrNotFound` + `IsNotFound(err)`, `StatusError{Method, Path, Status, Code}`, `ResponseTooLargeError{Path, Limit}`, `IsConfigError(err)` (a 4xx other than 408/429 is a configuration/authorization failure that will not self-heal; everything else is transient).

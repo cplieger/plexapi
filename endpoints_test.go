@@ -409,10 +409,10 @@ func TestStatisticsWithoutPlexPass(t *testing.T) {
 func TestStreamSelectionPaths(t *testing.T) {
 	srv, seen := fixtureServer(t, map[string]string{"/library/parts/": `{}`})
 	c := newTestClient(t, srv)
-	if err := c.SetAudioStream(t.Context(), 10, 100); err != nil {
+	if err := c.SetAudioStream(t.Context(), StreamSelection{PartID: 10, StreamID: 100}); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.SetSubtitleStream(t.Context(), 10, 200); err != nil {
+	if err := c.SetSubtitleStream(t.Context(), StreamSelection{PartID: 10, StreamID: 200}); err != nil {
 		t.Fatal(err)
 	}
 	if err := c.DisableSubtitles(t.Context(), 10); err != nil {

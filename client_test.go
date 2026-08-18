@@ -281,7 +281,7 @@ func TestPutNeverRetried(t *testing.T) {
 	}))
 	defer srv.Close()
 	c := newTestClient(t, srv)
-	err := c.SetAudioStream(t.Context(), 1, 2)
+	err := c.SetAudioStream(t.Context(), StreamSelection{PartID: 1, StreamID: 2})
 	var se *StatusError
 	if !errors.As(err, &se) || se.Code != 503 {
 		t.Fatalf("err = %v, want StatusError 503", err)
