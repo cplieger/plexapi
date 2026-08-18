@@ -111,31 +111,35 @@ func TestBuilderCapClasses(t *testing.T) {
 	requirePath(SectionsPath())
 	requirePath(HistoryPath(0)) // deliberate: the general cap is the unfiltered-fallback tripwire
 
-	if p, err := SectionItemsPath("1"); err != nil {
+	items, err := SectionItemsPath("1")
+	if err != nil {
 		t.Fatal(err)
-	} else {
-		requireListPath(p)
 	}
-	if p, err := RecentlyAddedPath("1", 4, 0); err != nil {
+	requireListPath(items)
+
+	recent, err := RecentlyAddedPath("1", 4, 0)
+	if err != nil {
 		t.Fatal(err)
-	} else {
-		requireListPath(p)
 	}
-	if p, err := MetadataPath("1"); err != nil {
+	requireListPath(recent)
+
+	meta, err := MetadataPath("1")
+	if err != nil {
 		t.Fatal(err)
-	} else {
-		requirePath(p)
 	}
-	if p, err := ChildrenPath("1"); err != nil {
+	requirePath(meta)
+
+	children, err := ChildrenPath("1")
+	if err != nil {
 		t.Fatal(err)
-	} else {
-		requirePath(p)
 	}
-	if p, err := AllLeavesPath("1"); err != nil {
+	requirePath(children)
+
+	leaves, err := AllLeavesPath("1")
+	if err != nil {
 		t.Fatal(err)
-	} else {
-		requirePath(p)
 	}
+	requirePath(leaves)
 }
 
 // consumerItem is a consumer-owned decode type (deliberately NOT Item) —
