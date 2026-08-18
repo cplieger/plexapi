@@ -36,7 +36,7 @@ func TestEndpointsPropagateServerErrors(t *testing.T) {
 		{"AllLeaves", func() error { _, err := c.AllLeaves(ctx, "1"); return err }},
 		{"ItemsByGUID", func() error { _, err := c.ItemsByGUID(ctx, "imdb://tt1"); return err }},
 		{"ShowForEpisodeGUID", func() error { _, err := c.ShowForEpisodeGUID(ctx, "plex://episode/x"); return err }},
-		{"ContainerTotalSize", func() error { _, err := c.ContainerTotalSize(ctx, "1", 0); return err }},
+		{"CountSectionItems", func() error { _, err := c.CountSectionItems(ctx, "1", 0); return err }},
 		{"Sessions", func() error { _, err := c.Sessions(ctx); return err }},
 		{"History", func() error { _, err := c.History(ctx, 0); return err }},
 	}
@@ -88,12 +88,12 @@ func TestResolvePathRejectsGarbage(t *testing.T) {
 	}
 }
 
-func TestContainerTotalSizeRejectsBadSection(t *testing.T) {
+func TestCountSectionItemsRejectsBadSection(t *testing.T) {
 	c, err := New("http://plex:32400", "tok")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.ContainerTotalSize(t.Context(), "not-a-key", 0); err == nil {
+	if _, err := c.CountSectionItems(t.Context(), "not-a-key", 0); err == nil {
 		t.Error("non-numeric section key accepted")
 	}
 }

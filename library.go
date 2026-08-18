@@ -132,12 +132,19 @@ func (c *Client) ShowForEpisodeGUID(ctx context.Context, episodeGUID string) (st
 	return show, nil
 }
 
-// ContainerTotalSize returns the number of items in a library section,
+// CountSectionItems returns the number of items in a library section,
 // optionally filtered to one metadata type (metadataType > 0 adds ?type=N;
 // 0 means unfiltered). It requests a single item and reads the container's
 // totalSize body field — the X-Plex-Container-Total-Size header is used
 // nowhere because it is not populated for type-filtered queries.
-func (c *Client) ContainerTotalSize(ctx context.Context, section RatingKey, metadataType int) (int64, error) {
+//
+// Named for the work rather than for the number: the other noun-named methods
+// on Client (Sections, Identity, Accounts, Providers) each name a RESOURCE, so
+// a request is the obvious reading, while a bare ContainerTotalSize read as a
+// property of something the caller already held. The rest of that naming
+// question is answered by the signature — a context plus an error is Go's cost
+// signal — but a noun that names no resource does not get that for free.
+func (c *Client) CountSectionItems(ctx context.Context, section RatingKey, metadataType int) (int64, error) {
 	path, err := SectionItemsPath(section)
 	if err != nil {
 		return 0, err

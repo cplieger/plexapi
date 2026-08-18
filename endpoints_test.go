@@ -231,11 +231,11 @@ func TestShowForEpisodeGUID(t *testing.T) {
 	})
 }
 
-func TestContainerTotalSize(t *testing.T) {
+func TestCountSectionItems(t *testing.T) {
 	srv, seen := fixtureServer(t, map[string]string{
 		"/library/sections/2/all": `{"MediaContainer":{"totalSize":4360}}`,
 	})
-	got, err := newTestClient(t, srv).ContainerTotalSize(t.Context(), "2", 4)
+	got, err := newTestClient(t, srv).CountSectionItems(t.Context(), "2", 4)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +253,7 @@ func TestContainerTotalSize(t *testing.T) {
 		srv2, seen2 := fixtureServer(t, map[string]string{
 			"/library/sections/3/all": `{"MediaContainer":{"totalSize":12}}`,
 		})
-		got, err := newTestClient(t, srv2).ContainerTotalSize(t.Context(), "3", 0)
+		got, err := newTestClient(t, srv2).CountSectionItems(t.Context(), "3", 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -266,7 +266,7 @@ func TestContainerTotalSize(t *testing.T) {
 	})
 	t.Run("invalid section key rejected before any request", func(t *testing.T) {
 		c, _ := New("http://plex:32400", "tok")
-		if _, err := c.ContainerTotalSize(t.Context(), "3; DROP", 4); err == nil {
+		if _, err := c.CountSectionItems(t.Context(), "3; DROP", 4); err == nil {
 			t.Error("non-numeric section key accepted")
 		}
 	})
