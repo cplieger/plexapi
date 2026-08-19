@@ -48,7 +48,7 @@ type Client struct {
 	baseTransport *http.Transport
 	logger        *slog.Logger
 	baseURL       *url.URL
-	token         string
+	token         Token
 	timeout       time.Duration
 	maxBody       int64
 	maxListBody   int64
@@ -146,6 +146,21 @@ func WithMaxListBodyBytes(n int64) Option {
 	}
 }
 
+// Token is a Plex authentication token, the credential sent as X-Plex-Token.
+//
+// It is a distinct type so it cannot be transposed with the server URL on
+// [New]: the two are adjacent and both are strings on the wire. Before this,
+// a swapped pair was caught only because a token does not parse as an
+// http(s) URL — detection at run time, and only because New happens to
+// validate. A named type makes a swapped pair of VARIABLES a compile error
+// instead. (Two untyped string LITERALS still convert either way, which is
+// why New keeps its URL validation.)
+//
+// plexapi declares its own rather than reusing another package's credential
+// type: that would put a dependency in this package's public contract, and a
+// caller would have to import it just to build a client.
+type Token string
+
 // New parses and validates baseURL (http/https scheme, non-empty host) and
 // returns a Client. Unless WithHTTPClient overrides it, the transport is:
 // OS trust store or the pinned CA from WithCACertPEM, a per-attempt
@@ -154,7 +169,7 @@ func WithMaxListBodyBytes(n int64) Option {
 // redirect policy so the token can never ride a hostile 3xx. Construction
 // warns via slog when baseURL is plain http to a non-local host (the token
 // would transit unencrypted).
-func New(baseURL, token string, opts ...Option) (*Client, error) {
+func New(baseURL string, token Token, opts ...Option) (*Client, error) {
 	parsed, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid Plex server URL: %w", err)
@@ -203,7 +218,7 @@ func New(baseURL, token string, opts ...Option) (*Client, error) {
 // different token — the per-user client for user-scoped writes (Plex
 // records a stream-selection PUT against the requesting token's user).
 // The underlying connection pool is shared.
-func (c *Client) ForToken(token string) *Client {
+func (c *Client) ForToken(token Token) *Client {
 	clone := *c
 	clone.token = token
 	return &clone
@@ -224,7 +239,7 @@ func (c *Client) BaseURL() *url.URL {
 // (NewTV) with the same credential, and authenticating a caller-owned
 // protocol upgrade (the X-Plex-Token header on a websocket dial). Never
 // log it, and never place it in a URL.
-func (c *Client) Token() string { return c.token }
+func (c *Client) Token() Token { return c.token }
 
 // RedirectPolicy returns the client's redirect policy (its CheckRedirect
 // function) so a caller-owned protocol upgrade — a websocket dialer — can
@@ -355,7 +370,7 @@ func (c *Client) do(ctx context.Context, method, path string, maxBytes int64, re
 		return fmt.Errorf("plex %s %s: building request: %w", method, path, err)
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("X-Plex-Token", c.token)
+	req.Header.Set("X-Plex-Token", string(c.token))
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

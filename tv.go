@@ -54,7 +54,7 @@ var sharedServersLimits = xmlx.Limits{
 type TV struct {
 	httpClient *http.Client
 	base       string
-	token      string
+	token      Token
 }
 
 // TVOption configures NewTV.
@@ -71,7 +71,7 @@ func WithTVBaseURL(base string) TVOption {
 }
 
 // NewTV returns a plex.tv client authenticated with the given token.
-func NewTV(token string, opts ...TVOption) *TV {
+func NewTV(token Token, opts ...TVOption) *TV {
 	t := &TV{
 		token: token,
 		base:  plexTVBase,
@@ -97,7 +97,7 @@ func (t *TV) SharedServers(ctx context.Context, machineIdentifier string) ([]Sha
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/xml")
-	req.Header.Set("X-Plex-Token", t.token)
+	req.Header.Set("X-Plex-Token", string(t.token))
 
 	resp, err := t.httpClient.Do(req)
 	if err != nil {
