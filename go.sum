@@ -1,6 +1,6 @@
-github.com/cplieger/httpx/v4 v4.3.1 h1:XDyP4i0k02B6wvnW4mp0KQ7vM6RIHtzkkP0Gzzu2GVI=
-github.com/cplieger/httpx/v4 v4.3.1/go.mod h1:0coefCZ470kiMATdNrU0CY5a4g/W7pFy0433CVZHwWc=
-github.com/cplieger/xmlx v1.0.1 h1:34SuU+x+2qE0uKRtqw3lM66ljYG57z0n+L3Ccp5q8H8=
-github.com/cplieger/xmlx v1.0.1/go.mod h1:+XOW4egV6AeF/Z14oyY4QNPgLkutnGLb5zMXjfhudQE=
+github.com/cplieger/httpx/v4 v4.3.2 h1:Vba8zyuBmPpeRAKtS9luI/DD5aNoxU+oVO76GQwsIIM=
+github.com/cplieger/httpx/v4 v4.3.2/go.mod h1:5zw0hQHzTI3P6WZHOkZtU/pNhgNCckXvvUykAsH+4PA=
+github.com/cplieger/xmlx v1.0.2 h1:cPovzliZ7s42nSuRz1d9CQiRfzuIqXO9SKeLmDd9h9k=
+github.com/cplieger/xmlx v1.0.2/go.mod h1:p9kb7S7fOrOybB7WWyFH00kCJyIWQ9e98n3vC6O50NI=
 pgregory.net/rapid v1.3.0 h1:vBvO0VSqti75J1jjYqpgPNBLKMd1+gxa9fYo7vk/Exc=
 pgregory.net/rapid v1.3.0/go.mod h1:dPlE4OBBxgXPqkP79flB6sJL1dx5azpI7HQ9MY9Z7uk=
