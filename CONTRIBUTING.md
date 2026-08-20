@@ -43,8 +43,14 @@ transport errors, honoring `Retry-After`); writes are never retried (body
 replay stays off, so a mutation applies at most once). A per-attempt
 response-header timeout keeps a stalled attempt retryable; the per-request
 default timeout applies only when the caller's context has no deadline. Keep
-new endpoints on `do`/`fetchMetadata`/`fetchDirectory` so they inherit all
-of it; `Get` is the documented escape hatch for unmodeled endpoints.
+new endpoints on `do`/`fetchMetadata` so they inherit all of it; `Get` is the
+documented escape hatch for unmodeled endpoints.
+
+`FetchMetadata`, `FetchMetadataList` and `FetchDirectory` are generic methods
+on `*Client` (Go 1.27). Adding another envelope decoder follows the same
+shape: a generic method whose type parameter is the caller's item type. Do
+not put one in an interface, because the language forbids it; a consumer that
+needs a seam wraps the method in a non-generic method of its own.
 
 ## Wire-format notes
 

@@ -165,7 +165,7 @@ func TestFetchMetadataConsumerType(t *testing.T) {
 			{"ratingKey":"55","title":"Ep","index":"3"}]}}`,
 	})
 	c := newTestClient(t, srv)
-	got, err := FetchMetadata[consumerItem](t.Context(), c, HistoryPath(1700000000))
+	got, err := c.FetchMetadata[consumerItem](t.Context(), HistoryPath(1700000000))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +184,7 @@ func TestFetchDirectoryConsumerType(t *testing.T) {
 			{"key":"1","type":"movie"},{"key":"2","type":"show"}]}}`,
 	})
 	c := newTestClient(t, srv)
-	got, err := FetchDirectory[consumerSection](t.Context(), c, SectionsPath())
+	got, err := c.FetchDirectory[consumerSection](t.Context(), SectionsPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,10 +204,10 @@ func TestFetchCapClasses(t *testing.T) {
 	t.Cleanup(srv.Close)
 	c := newTestClient(t, srv, WithMaxBodyBytes(16), WithMaxListBodyBytes(1<<20))
 
-	if _, err := FetchMetadata[consumerItem](t.Context(), c, "/x"); err == nil {
+	if _, err := c.FetchMetadata[consumerItem](t.Context(), "/x"); err == nil {
 		t.Error("FetchMetadata under a tiny general cap should overflow")
 	}
-	if _, err := FetchMetadataList[consumerItem](t.Context(), c, "/x"); err != nil {
+	if _, err := c.FetchMetadataList[consumerItem](t.Context(), "/x"); err != nil {
 		t.Errorf("FetchMetadataList under the raised list cap: %v", err)
 	}
 }

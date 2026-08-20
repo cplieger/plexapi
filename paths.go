@@ -7,10 +7,10 @@ import "fmt"
 // operators, the rating-key validation applied before any URL
 // interpolation, and — through the Path/ListPath return types — the read-cap
 // class each endpoint decodes under. Consumers that decode into their own
-// domain types (via FetchMetadata / FetchMetadataList / FetchDirectory, or
-// Get) compose these builders instead of re-owning path strings — a filter,
-// path, or cap-class fix then lands in one place, not in every importing
-// repo.
+// domain types (via the client's FetchMetadata / FetchMetadataList /
+// FetchDirectory generic methods, or Get) compose these builders instead of
+// re-owning path strings — a filter, path, or cap-class fix then lands in one
+// place, not in every importing repo.
 //
 // The `>=` in the history and recently-added filters is a wire contract:
 // one literal `>`, unencoded. Plex silently ignores a malformed (`>>=`) or
@@ -28,7 +28,7 @@ type Path string
 // decodes under the large-listing read cap (WithMaxListBodyBytes) — section
 // listings are an order of magnitude larger than any other Plex response.
 // Produced by the listing builders (SectionItemsPath, RecentlyAddedPath);
-// FetchMetadataList accepts only this type.
+// Client.FetchMetadataList accepts only this type.
 type ListPath string
 
 // SessionsPath returns the active-sessions endpoint path

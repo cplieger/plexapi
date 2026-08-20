@@ -56,10 +56,14 @@
 // package's wire-grammar ownership: the exported path builders
 // (SessionsPath, HistoryPath, MetadataPath, ...) carry the endpoint paths,
 // rating-key validation, the literal filter-operator contract, and — via
-// their Path/ListPath return types — each endpoint's read-cap class, and
-// FetchMetadata / FetchMetadataList / FetchDirectory decode the
-// MediaContainer envelopes into any caller-owned type over the same
-// hardened transport, with the cap class enforced at compile time (a
+// their Path/ListPath return types — each endpoint's read-cap class, and the
+// client's FetchMetadata / FetchMetadataList / FetchDirectory generic methods
+// decode the MediaContainer envelopes into any caller-owned type over the
+// same hardened transport, with the cap class enforced at compile time (a
 // listing endpoint cannot be fetched under the general cap by accident).
 // The typed Item methods are composition over exactly these pieces.
+//
+// Those three decoders are generic METHODS (Go 1.27), so they cannot appear
+// in an interface: a consumer that mocks this client wraps them in
+// non-generic methods of its own.
 package plexapi

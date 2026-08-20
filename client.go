@@ -498,14 +498,22 @@ func (c *Client) put(ctx context.Context, path string) error {
 // {"MediaContainer":{"Metadata":[...]}} envelope — the dominant Plex
 // response shape — into the caller-owned item type T. It is the exported
 // decode kernel for consumers that keep their own domain models: the same
-// generic the typed Item methods are built on (Go methods cannot be
-// type-parameterized, so it is a package function taking the client).
+// generic the typed Item methods are built on.
 // Compose it with the path builders (HistoryPath, MetadataPath, ...): the
 // builder's return type carries the endpoint's read-cap class, so a
 // listing-sized endpoint cannot compile against the general cap — use
 // FetchMetadataList for the ListPath builders (SectionItemsPath,
 // RecentlyAddedPath).
-func FetchMetadata[T any](ctx context.Context, c *Client, path Path) ([]T, error) {
+//
+// A generic METHOD (Go 1.27): the type parameter is the caller's item type,
+// which the receiver knows nothing about, so before 1.27 this had to be a
+// package-level function taking the client as its first argument. It is a
+// method now because the operation belongs to the client's namespace. The
+// consequence to know: a generic method can never satisfy an interface, so
+// a consumer that wants to mock this surface must wrap it in a
+// non-generic method of its own (see plex-language-sync's internal/plex
+// adapter, which does exactly that).
+func (c *Client) FetchMetadata[T any](ctx context.Context, path Path) ([]T, error) {
 	return fetchMetadata[T](ctx, c, string(path), c.maxBody)
 }
 
@@ -513,14 +521,14 @@ func FetchMetadata[T any](ctx context.Context, c *Client, path Path) ([]T, error
 // (WithMaxListBodyBytes). It accepts only ListPath — the full-listing
 // endpoints (SectionItemsPath, RecentlyAddedPath), whose responses on a big
 // library are an order of magnitude larger than any other Plex response.
-func FetchMetadataList[T any](ctx context.Context, c *Client, path ListPath) ([]T, error) {
+func (c *Client) FetchMetadataList[T any](ctx context.Context, path ListPath) ([]T, error) {
 	return fetchMetadata[T](ctx, c, string(path), c.maxListBody)
 }
 
 // FetchDirectory fetches a general-cap endpoint and decodes the
 // {"MediaContainer":{"Directory":[...]}} envelope (library sections) into
 // the caller-owned type T. The Directory counterpart of FetchMetadata.
-func FetchDirectory[T any](ctx context.Context, c *Client, path Path) ([]T, error) {
+func (c *Client) FetchDirectory[T any](ctx context.Context, path Path) ([]T, error) {
 	var resp MC[struct {
 		Directory []T `json:"Directory"`
 	}]
@@ -531,7 +539,10 @@ func FetchDirectory[T any](ctx context.Context, c *Client, path Path) ([]T, erro
 }
 
 // fetchMetadata is the cap-parameterized core behind FetchMetadata and
-// FetchMetadataList.
+// FetchMetadataList. It stays a function taking the client because the two
+// methods above already own the receiver, and a third method differing only
+// in an int64 argument would advertise the cap as a caller's choice when the
+// path's type is what decides it.
 func fetchMetadata[T any](ctx context.Context, c *Client, path string, maxBytes int64) ([]T, error) {
 	var resp MC[struct {
 		Metadata []T `json:"Metadata"`

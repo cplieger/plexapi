@@ -10,7 +10,7 @@ import (
 // Sections returns every library section. Filter by Section.Type
 // (SectionTypeMovie, SectionTypeShow) app-side.
 func (c *Client) Sections(ctx context.Context) ([]Section, error) {
-	return FetchDirectory[Section](ctx, c, SectionsPath())
+	return c.FetchDirectory[Section](ctx, SectionsPath())
 }
 
 // SectionItems returns all items in a library section — the full listing
@@ -22,7 +22,7 @@ func (c *Client) SectionItems(ctx context.Context, sectionKey RatingKey) ([]Item
 	if err != nil {
 		return nil, err
 	}
-	return FetchMetadataList[Item](ctx, c, path)
+	return c.FetchMetadataList[Item](ctx, path)
 }
 
 // RecentlyAdded returns a section's items of the given metadata type added
@@ -33,7 +33,7 @@ func (c *Client) RecentlyAdded(ctx context.Context, sectionKey RatingKey, metada
 	if err != nil {
 		return nil, err
 	}
-	return FetchMetadataList[Item](ctx, c, path)
+	return c.FetchMetadataList[Item](ctx, path)
 }
 
 // Metadata fetches one library item by rating key. The endpoint is
@@ -45,7 +45,7 @@ func (c *Client) Metadata(ctx context.Context, key RatingKey) (*Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	items, err := FetchMetadata[Item](ctx, c, path)
+	items, err := c.FetchMetadata[Item](ctx, path)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (c *Client) Children(ctx context.Context, key RatingKey) ([]Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	return FetchMetadata[Item](ctx, c, path)
+	return c.FetchMetadata[Item](ctx, path)
 }
 
 // AllLeaves returns an item's leaf descendants (every episode of a show).
@@ -71,7 +71,7 @@ func (c *Client) AllLeaves(ctx context.Context, key RatingKey) ([]Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	return FetchMetadata[Item](ctx, c, path)
+	return c.FetchMetadata[Item](ctx, path)
 }
 
 // ItemExists reports whether the rating key currently addresses an item:
@@ -102,7 +102,7 @@ func (c *Client) ItemsByGUID(ctx context.Context, guid string) ([]Item, error) {
 	if guid == "" {
 		return nil, nil
 	}
-	return FetchMetadata[Item](ctx, c, Path("/library/all?"+url.Values{"guid": {guid}}.Encode()))
+	return c.FetchMetadata[Item](ctx, Path("/library/all?"+url.Values{"guid": {guid}}.Encode()))
 }
 
 // ShowForEpisodeGUID resolves an episode GUID to the rating key of the show
