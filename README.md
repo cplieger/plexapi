@@ -13,8 +13,10 @@ GUID resolution, and per-user stream selection. The transport defends the
 `X-Plex-Token` by construction and retries transient failures transparently.
 Plus a small client for the plex.tv account API (shared-server user tokens).
 
-One runtime dependency: [httpx](https://github.com/cplieger/httpx) (retry
-round-tripper, CA pinning, bounded reads).
+Two runtime dependencies: [httpx](https://github.com/cplieger/httpx) (retry
+round-tripper, CA pinning, bounded reads) and
+[xmlx](https://github.com/cplieger/xmlx) (bounded XML decode, for the one
+plex.tv endpoint that answers XML).
 
 ## Install
 
@@ -25,7 +27,8 @@ go get github.com/cplieger/plexapi/v2@latest
 ## Usage
 
 ```go
-client, err := plexapi.New("http://plex:32400", token)
+// Token is a named type: a swapped token and URL is a compile error.
+client, err := plexapi.New("http://plex:32400", plexapi.Token(token))
 if err != nil { ... }
 
 // Library indexing: sections and their items (rating keys, GUIDs, years).
@@ -42,11 +45,11 @@ history, err := client.History(ctx, time.Now().Add(-24*time.Hour).Unix())
 
 // Per-user stream selection: writes are recorded against the REQUESTING
 // token's user, so select with that user's token.
-userClient := client.ForToken(userToken)
+userClient := client.ForToken(plexapi.Token(userToken))
 err = userClient.SetSubtitleStream(ctx, plexapi.StreamSelection{PartID: partID, StreamID: streamID})
 
 // plex.tv: the shared users of a server, with their access tokens.
-tv := plexapi.NewTV(adminToken)
+tv := plexapi.NewTV(plexapi.Token(adminToken))
 shared, err := tv.SharedServers(ctx, machineID)
 ```
 
@@ -55,7 +58,7 @@ there is no skip option):
 
 ```go
 pem, _ := os.ReadFile(caPath) // the caller owns file I/O
-client, err := plexapi.New(serverURL, token, plexapi.WithCACertPEM(pem))
+client, err := plexapi.New(serverURL, plexapi.Token(token), plexapi.WithCACertPEM(pem))
 ```
 
 ## Security model
@@ -92,28 +95,15 @@ The token grants full server access; the client defends it on every request:
   full section listings; both configurable), with overflow reported as
   `*ResponseTooLargeError` rather than a truncated decode.
 
-## v1 → v2
-
-| v1 | v2 |
-| --- | --- |
-| `github.com/cplieger/plexapi` | `github.com/cplieger/plexapi/v2` in `go.mod` and every import |
-| `SetAudioStream(ctx, partID, streamID)` | `SetAudioStream(ctx, StreamSelection{PartID: …, StreamID: …})` |
-| `SetSubtitleStream(ctx, partID, streamID)` | `SetSubtitleStream(ctx, StreamSelection{PartID: …, StreamID: …})` |
-
-`DisableSubtitles(ctx, partID)` is unchanged. The five remote reads keep their noun names
-(`Identity`, `Accounts`, `Providers`, `SharedServers`): each takes a
-`context.Context` and returns an error, which is Go's cost signal — a rename would restate the
-signature.
-
 ## API
 
 - **Constructor:** `New(baseURL string, token Token, ...Option)`. `Token` is the package's own credential type, so a token/URL transposition is a compile error rather than a run-time URL-parse failure; `ForToken` and `NewTV` take it too. An untyped literal still converts, which is why `New` keeps its URL validation. Options: `WithCACertPEM`, `WithMaxAttempts` (total, default 3), `WithBaseDelay`, `WithTimeout`, `WithMaxBodyBytes`/`WithMaxListBodyBytes` (read caps), `WithLogger` (routes the client's own diagnostics; default `slog.Default()`), `WithOnRetry` (retry-counter hook), `WithHTTPClient` (caller-owned transport, tests).
 - **Derived clients:** `(*Client).ForToken(token)`: same server and shared connection pool, different token (the per-user write path). `(*Client).BaseTransport()`: an independent clone of the hardened base transport (CA trust, per-attempt header timeout, no retry wrapper) for a caller-owned protocol upgrade such as a WebSocket dial; nil under `WithHTTPClient`. `(*Client).RedirectPolicy()`: the client's CheckRedirect function, for the same dial path.
 - **Wire-grammar layer:** path builders `SessionsPath()`, `SectionsPath()`, `HistoryPath(sinceUnix)`, `SectionItemsPath(key)`, `RecentlyAddedPath(key, type, sinceUnix)`, `MetadataPath(key)`, `ChildrenPath(key)`, `AllLeavesPath(key)` own every endpoint path, the rating-key validation, and the filter-operator contract. Their typed returns carry each endpoint's read-cap class: `Path` (general cap) or `ListPath` (list cap). Generic methods `c.FetchMetadata[T]` / `c.FetchDirectory[T]` (accepting `Path`) and `c.FetchMetadataList[T]` (accepting only `ListPath`) decode the MediaContainer envelopes into caller-owned types over the same hardened transport, so a cap-class mismatch is a compile error. Consumers with their own domain models compose these instead of hand-building paths. Being generic methods (Go 1.27) they cannot appear in an interface, so a consumer that mocks the client wraps them in non-generic methods of its own.
-- **Library:** `Sections`, `SectionItems(key)`, `RecentlyAdded(key, type, sinceUnix)`, `Metadata(key)`, `Children(key)`, `AllLeaves(key)`, `ItemExists(key)` (fail-closed: an undetermined check is an error, never "gone"), `ItemsByGUID(guid)`, `ShowForEpisodeGUID(guid)` (ambiguity yields `""`, refusing to guess), `CountSectionItems(section, type)` (validated section key; `type` 0 = unfiltered; named for the request it makes, since unlike the noun-named methods it names no resource).
+- **Library:** `Sections`, `SectionItems(key)`, `RecentlyAdded(key, type, sinceUnix)`, `Metadata(key)`, `Children(key)`, `AllLeaves(key)`, `ItemExists(key)` (fail-closed: an undetermined check is an error, never "gone"), `ItemsByGUID(guid)`, `ShowForEpisodeGUID(guid)` (ambiguity yields `""`, refusing to guess), `CountSectionItems(section, type)` (validated section key; `type` 0 = unfiltered).
 - **Sessions & history:** `Sessions()`, `History(sinceUnix)`. History and recently-added filters use Plex's literal single-char `>=` operator; a malformed or encoded operator is silently ignored by Plex, returning the full unfiltered set, so the literal form is pinned by tests.
 - **Server:** `Identity()`, `Accounts()`, `AdminAccount()`, `Providers()` (per-library duration/storage), `StatisticsResources(timespan)` / `StatisticsBandwidth(timespan)` (Plex Pass; 404 → `ErrNotFound` for graceful degradation).
-- **Stream selection:** `SetAudioStream(StreamSelection{PartID, StreamID})`, `SetSubtitleStream(StreamSelection{…})`, `DisableSubtitles(partID)`; user-scoped by requesting token. The IDs travel as a named-field struct because two adjacent ints transposed cleanly and the request only failed after the round trip.
+- **Stream selection:** `SetAudioStream(StreamSelection{PartID, StreamID})`, `SetSubtitleStream(StreamSelection{…})`, `DisableSubtitles(partID)`; user-scoped by requesting token.
 - **plex.tv:** `NewTV(token, ...TVOption)`, `(*TV).SharedServers(machineID)`.
 - **Types:** `MC[T]` (the MediaContainer envelope, for `Get` escape-hatch decoding), `Item` (Plex's polymorphic metadata item: library entries, sessions, and history rows are one wire shape), `FlexInt` (absorbs Plex's number-or-quoted-string fields), `RatingKey` (validated identifier), the `Media`→`Part`→`Stream` graph, `Section`, `ServerIdentity`, `Account`, `SharedServer`, statistics types.
 - **Errors:** `ErrNotFound` + `IsNotFound(err)`, `StatusError{Method, Path, Status, Code}`, `ResponseTooLargeError{Path, Limit}`, `IsConfigError(err)` (a 4xx other than 408/429 is a configuration/authorization failure that will not self-heal; everything else is transient).
