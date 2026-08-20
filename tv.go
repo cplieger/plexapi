@@ -111,8 +111,7 @@ func (t *TV) SharedServers(ctx context.Context, machineIdentifier string) ([]Sha
 	}
 	body, err := httpx.ReadLimitedBody(resp.Body, DefaultMaxBodyBytes)
 	if err != nil {
-		var tooLarge *httpx.ResponseTooLargeError
-		if errors.As(err, &tooLarge) {
+		if _, ok := errors.AsType[*httpx.ResponseTooLargeError](err); ok {
 			return nil, &ResponseTooLargeError{Path: apiPath, Limit: DefaultMaxBodyBytes}
 		}
 		return nil, fmt.Errorf("plex.tv shared_servers: reading body: %w", err)
