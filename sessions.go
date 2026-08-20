@@ -6,7 +6,7 @@ import "context"
 // Session items populate User, Player, Session, TranscodeSession, and the
 // Media graph; a direct-play session has no TranscodeSession.
 func (c *Client) Sessions(ctx context.Context) ([]Item, error) {
-	return FetchMetadata[Item](ctx, c, SessionsPath())
+	return c.FetchMetadata[Item](ctx, SessionsPath())
 }
 
 // History returns watch-history entries viewed at or after sinceUnix,
@@ -14,5 +14,5 @@ func (c *Client) Sessions(ctx context.Context) ([]Item, error) {
 // literal-operator wire contract: one `>`, unencoded — Plex silently
 // ignores a malformed operator and returns the FULL history).
 func (c *Client) History(ctx context.Context, sinceUnix int64) ([]Item, error) {
-	return FetchMetadata[Item](ctx, c, HistoryPath(sinceUnix))
+	return c.FetchMetadata[Item](ctx, HistoryPath(sinceUnix))
 }
