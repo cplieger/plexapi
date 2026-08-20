@@ -224,14 +224,13 @@ func (c *Client) ForToken(token Token) *Client {
 	return &clone
 }
 
-// BaseURL returns a copy of the configured server base URL (for deriving a
-// websocket URL or logging the host). It is a clone: mutating it never
+// BaseURL returns a deep copy of the configured server base URL (for
+// deriving a websocket URL or logging the host). Mutating it never
 // re-targets the client, whose every request resolves against the internal
 // original — handing out that pointer would reopen the origin-mutation
 // class the server-relative path guard exists to close.
 func (c *Client) BaseURL() *url.URL {
-	u := *c.baseURL
-	return &u
+	return c.baseURL.Clone()
 }
 
 // Token returns the client's token. Sanctioned in-process uses: comparing

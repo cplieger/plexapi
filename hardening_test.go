@@ -166,19 +166,48 @@ func TestBaseURLCloneImmutable(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
-	c := newTestClient(t, srv)
 
-	stolen := c.BaseURL()
-	stolen.Scheme = "https"
-	stolen.Host = "evil.invalid:1"
-	stolen.Path = "/hijacked"
+	t.Run("value fields", func(t *testing.T) {
+		c := newTestClient(t, srv)
 
-	if got := c.BaseURL().String(); got != srv.URL {
-		t.Errorf("BaseURL after mutation = %q, want %q", got, srv.URL)
-	}
-	if err := c.Get(t.Context(), "/", nil); err != nil {
-		t.Errorf("request after BaseURL mutation failed (client re-targeted?): %v", err)
-	}
+		stolen := c.BaseURL()
+		stolen.Scheme = "https"
+		stolen.Host = "evil.invalid:1"
+		stolen.Path = "/hijacked"
+
+		if got := c.BaseURL().String(); got != srv.URL {
+			t.Errorf("BaseURL after mutation = %q, want %q", got, srv.URL)
+		}
+		if err := c.Get(t.Context(), "/", nil); err != nil {
+			t.Errorf("request after BaseURL mutation failed (client re-targeted?): %v", err)
+		}
+	})
+
+	// Userinfo is the one url.URL field held behind a pointer, so it is the
+	// one a struct copy shares. Mutating THROUGH that pointer is legal from
+	// outside net/url (*u.User = url.Userinfo{} needs no field access), and
+	// ResolveReference carries User into every resolved request URL, so a
+	// shared pointer let a caller strip the client's own credentials from
+	// every subsequent request. Only a deep copy closes it; the value-field
+	// subtest above cannot see this, which is why the shallow copy survived.
+	t.Run("userinfo behind the pointer", func(t *testing.T) {
+		host := strings.TrimPrefix(srv.URL, "http://")
+		c, err := New("http://user:secret@"+host, "test-token")
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := c.BaseURL().String()
+
+		stolen := c.BaseURL()
+		*stolen.User = url.Userinfo{}
+
+		if got := c.BaseURL().String(); got != want {
+			t.Errorf("BaseURL after userinfo mutation = %q, want %q", got, want)
+		}
+		if err := c.Get(t.Context(), "/", nil); err != nil {
+			t.Errorf("request after userinfo mutation failed: %v", err)
+		}
+	})
 }
 
 // TestWithLoggerRoutesDiagnostics pins the logger seam: both library log
