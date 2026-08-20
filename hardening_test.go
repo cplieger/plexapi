@@ -295,8 +295,8 @@ func TestBodyCapOptions(t *testing.T) {
 			t.Fatal(err)
 		}
 		_, err = c.SectionItems(t.Context(), "1")
-		var tle *ResponseTooLargeError
-		if !errors.As(err, &tle) || tle.Limit != 16 {
+		tle, ok := errors.AsType[*ResponseTooLargeError](err)
+		if !ok || tle.Limit != 16 {
 			t.Errorf("err = %v, want ResponseTooLargeError limit 16", err)
 		}
 	})

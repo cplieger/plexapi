@@ -462,9 +462,9 @@ func (c *Client) decodeBody(method, path string, body io.Reader, maxBytes int64,
 // isJSONError reports whether err is a JSON parse/shape error (as opposed
 // to a transport read error surfaced through the decoder).
 func isJSONError(err error) bool {
-	var syn *json.SyntaxError
-	var typ *json.UnmarshalTypeError
-	return errors.As(err, &syn) || errors.As(err, &typ)
+	_, isSyntax := errors.AsType[*json.SyntaxError](err)
+	_, isType := errors.AsType[*json.UnmarshalTypeError](err)
+	return isSyntax || isType
 }
 
 // countingReader counts the bytes read through it, so decodeBody can

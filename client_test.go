@@ -119,8 +119,8 @@ func TestRedirectRefused(t *testing.T) {
 
 	c := newTestClient(t, srv)
 	err := c.Get(t.Context(), "/x", nil)
-	var se *StatusError
-	if !errors.As(err, &se) || se.Code != http.StatusFound {
+	se, ok := errors.AsType[*StatusError](err)
+	if !ok || se.Code != http.StatusFound {
 		t.Errorf("Get through 302 = %v, want StatusError 302", err)
 	}
 	if followed.Load() {
@@ -143,8 +143,8 @@ func TestDoStatusMapping(t *testing.T) {
 		}},
 		{name: "401 is StatusError", status: 401, check: func(t *testing.T, err error) {
 			t.Helper()
-			var se *StatusError
-			if !errors.As(err, &se) || se.Code != 401 {
+			se, ok := errors.AsType[*StatusError](err)
+			if !ok || se.Code != 401 {
 				t.Errorf("err = %v, want StatusError 401", err)
 			}
 		}},
@@ -183,8 +183,8 @@ func TestDoBodyCap(t *testing.T) {
 	defer srv.Close()
 	var out map[string]any
 	err := newTestClient(t, srv).Get(t.Context(), "/x", &out)
-	var tle *ResponseTooLargeError
-	if !errors.As(err, &tle) || tle.Limit != DefaultMaxBodyBytes {
+	tle, ok := errors.AsType[*ResponseTooLargeError](err)
+	if !ok || tle.Limit != DefaultMaxBodyBytes {
 		t.Errorf("err = %v, want ResponseTooLargeError with limit %d", err, DefaultMaxBodyBytes)
 	}
 }
@@ -206,15 +206,16 @@ func TestStreamDecodeEdges(t *testing.T) {
 
 	t.Run("over cap with valid JSON prefix is the typed error", func(t *testing.T) {
 		c := serve(t, `{"pad":"`+strings.Repeat("x", 200)+`"}`)
-		var tle *ResponseTooLargeError
-		if err := c.Get(t.Context(), "/x", &out); !errors.As(err, &tle) || tle.Limit != 64 {
+		err := c.Get(t.Context(), "/x", &out)
+		tle, ok := errors.AsType[*ResponseTooLargeError](err)
+		if !ok || tle.Limit != 64 {
 			t.Errorf("err = %v, want ResponseTooLargeError limit 64", err)
 		}
 	})
 	t.Run("valid value with huge trailing content is over-cap not trailing", func(t *testing.T) {
 		c := serve(t, `{}`+strings.Repeat(" ", 200))
-		var tle *ResponseTooLargeError
-		if err := c.Get(t.Context(), "/x", &out); !errors.As(err, &tle) {
+		err := c.Get(t.Context(), "/x", &out)
+		if _, ok := errors.AsType[*ResponseTooLargeError](err); !ok {
 			t.Errorf("err = %v, want ResponseTooLargeError", err)
 		}
 	})
@@ -282,8 +283,8 @@ func TestPutNeverRetried(t *testing.T) {
 	defer srv.Close()
 	c := newTestClient(t, srv)
 	err := c.SetAudioStream(t.Context(), StreamSelection{PartID: 1, StreamID: 2})
-	var se *StatusError
-	if !errors.As(err, &se) || se.Code != 503 {
+	se, ok := errors.AsType[*StatusError](err)
+	if !ok || se.Code != 503 {
 		t.Fatalf("err = %v, want StatusError 503", err)
 	}
 	if calls.Load() != 1 {

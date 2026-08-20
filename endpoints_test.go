@@ -478,8 +478,8 @@ func TestSharedServers(t *testing.T) {
 		if !errors.Is(err, xmlx.ErrLimit) {
 			t.Fatalf("err = %v, want an xmlx.ErrLimit", err)
 		}
-		var le *xmlx.LimitError
-		if !errors.As(err, &le) || le.Kind != xmlx.KindDepth {
+		le, ok := errors.AsType[*xmlx.LimitError](err)
+		if !ok || le.Kind != xmlx.KindDepth {
 			t.Errorf("err = %v, want KindDepth", err)
 		}
 	})
@@ -507,8 +507,8 @@ func TestSharedServers(t *testing.T) {
 		}))
 		defer srv.Close()
 		_, err := NewTV("t", WithTVBaseURL(srv.URL)).SharedServers(t.Context(), "m")
-		var se *StatusError
-		if err == nil || !errors.As(err, &se) || se.Code != 401 {
+		se, ok := errors.AsType[*StatusError](err)
+		if !ok || se.Code != 401 {
 			t.Fatalf("err = %v, want 401 StatusError", err)
 		}
 		if se.Path != "/api/servers/m/shared_servers" {

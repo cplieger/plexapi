@@ -36,8 +36,8 @@ func (e *StatusError) Error() string {
 // TLS/certificate failures surface as transport errors and remain the
 // caller's concern to classify.
 func IsConfigError(err error) bool {
-	var se *StatusError
-	if !errors.As(err, &se) {
+	se, ok := errors.AsType[*StatusError](err)
+	if !ok {
 		return false
 	}
 	if se.Code == 408 || se.Code == 429 {
