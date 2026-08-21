@@ -272,6 +272,12 @@ func TestCountSectionItems(t *testing.T) {
 	})
 }
 
+// TestSessionsDecodesSessionGraph pins the LIVE /status/sessions wire shape,
+// quoted ids included (verified 2026-08-21 against Plex 1.43.3): Media.id,
+// Part.id and Stream.id arrive as JSON strings here while the same fields on
+// /library/metadata/<key> arrive as bare numbers (TestMetadataPolymorphic pins
+// that side). Modelling them as plain ints made every active session's payload
+// fail to decode, which took the whole MediaContainer with it.
 func TestSessionsDecodesSessionGraph(t *testing.T) {
 	srv, _ := fixtureServer(t, map[string]string{
 		"/status/sessions": `{"MediaContainer":{"Metadata":[
@@ -280,11 +286,16 @@ func TestSessionsDecodesSessionGraph(t *testing.T) {
 			 "Player":{"device":"TV","product":"Plex for LG","state":"playing","machineIdentifier":"m1","local":true},
 			 "Session":{"location":"lan","bandwidth":20000},
 			 "TranscodeSession":{"videoDecision":"transcode","audioDecision":"copy"},
-			 "Media":[{"videoResolution":"1080","bitrate":8000,"Part":[{"decision":"transcode"}]}]}]}}`,
+			 "Media":[{"id":"55","videoResolution":"1080","bitrate":8000,
+				"Part":[{"id":"66","decision":"transcode","Stream":[
+					{"id":"77","streamType":2,"languageCode":"eng","selected":true}]}]}]}]}}`,
 	})
 	got, err := newTestClient(t, srv).Sessions(t.Context())
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Sessions() = %v, want a decoded session", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("Sessions() returned %d sessions, want 1", len(got))
 	}
 	s := got[0]
 	if s.User == nil || s.User.Title != "alice" || int(s.User.ID) != 7 {
@@ -298,6 +309,15 @@ func TestSessionsDecodesSessionGraph(t *testing.T) {
 	}
 	if s.Media[0].VideoResolution != "1080" || s.Media[0].Part[0].Decision != "transcode" {
 		t.Errorf("Media = %+v", s.Media)
+	}
+	if got, want := int(s.Media[0].ID), 55; got != want {
+		t.Errorf("Media[0].ID = %d, want %d (quoted id on /status/sessions)", got, want)
+	}
+	if got, want := int(s.Media[0].Part[0].ID), 66; got != want {
+		t.Errorf("Part[0].ID = %d, want %d (quoted id on /status/sessions)", got, want)
+	}
+	if got, want := int(s.Media[0].Part[0].Stream[0].ID), 77; got != want {
+		t.Errorf("Stream[0].ID = %d, want %d (quoted id on /status/sessions)", got, want)
 	}
 }
 

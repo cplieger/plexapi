@@ -128,19 +128,28 @@ type Label struct {
 }
 
 // Media is one media rendition of an item, wrapping its parts.
+//
+// ID is FlexInt because the Media→Part→Stream graph is the one place Plex
+// disagrees with itself about the wire type of an id: /library/metadata/<key>
+// and /library/sections/<n>/all send a bare number, /status/sessions sends the
+// same field quoted (verified live 2026-08-21 against Plex 1.43.3). A plain int
+// makes an active session's payload undecodable, and because the failure is a
+// decode error on the whole MediaContainer it takes every OTHER field on every
+// session with it.
 type Media struct {
-	VideoResolution string `json:"videoResolution"`
-	Part            []Part `json:"Part"`
-	ID              int    `json:"id"`
-	Bitrate         int    `json:"bitrate"`
+	VideoResolution string  `json:"videoResolution"`
+	Part            []Part  `json:"Part"`
+	ID              FlexInt `json:"id"`
+	Bitrate         int     `json:"bitrate"`
 }
 
 // Part is one file of a Media, wrapping its streams. Decision is populated
-// on session responses (the transcoder's per-part verdict).
+// on session responses (the transcoder's per-part verdict). ID is FlexInt for
+// the reason given on Media.
 type Part struct {
 	Decision string   `json:"decision"`
 	Stream   []Stream `json:"Stream"`
-	ID       int      `json:"id"`
+	ID       FlexInt  `json:"id"`
 }
 
 // StreamType identifies the kind of stream. The integer values are the
@@ -154,7 +163,8 @@ const (
 	StreamTypeSubtitle StreamType = 3
 )
 
-// Stream is a single video/audio/subtitle stream on a Part.
+// Stream is a single video/audio/subtitle stream on a Part. ID is FlexInt for
+// the reason given on Media.
 type Stream struct {
 	LanguageCode         string     `json:"languageCode"`
 	LanguageTag          string     `json:"languageTag"`
@@ -163,7 +173,7 @@ type Stream struct {
 	Title                string     `json:"title"`
 	Codec                string     `json:"codec"`
 	AudioChannelLayout   string     `json:"audioChannelLayout"`
-	ID                   int        `json:"id"`
+	ID                   FlexInt    `json:"id"`
 	StreamType           StreamType `json:"streamType"`
 	Channels             int        `json:"channels"`
 	Selected             bool       `json:"selected"`
