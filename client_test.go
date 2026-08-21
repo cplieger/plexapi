@@ -249,6 +249,58 @@ func TestStreamDecodeEdges(t *testing.T) {
 			t.Errorf("trailing-whitespace Get: %v", err)
 		}
 	})
+	// A body filling the cap exactly is INSIDE the limit, so a decode failure
+	// on it is a decode failure. Reporting it as ResponseTooLargeError would
+	// name a cap the response never exceeded and send an operator to raise a
+	// limit that is not the problem.
+	t.Run("exactly at cap with malformed JSON is a decode error", func(t *testing.T) {
+		payload := `{"pad":"` + strings.Repeat("x", 56)
+		if int64(len(payload)) != 64 {
+			t.Fatalf("fixture drifted: len = %d, want 64", len(payload))
+		}
+		c := serve(t, payload)
+		err := c.Get(t.Context(), "/x", &out)
+		if tle, ok := errors.AsType[*ResponseTooLargeError](err); ok {
+			t.Errorf("Get on a 64-byte body at a 64-byte cap = %v, want a decode error not a %d-byte over-cap error", err, tle.Limit)
+		}
+		if err == nil || !strings.Contains(err.Error(), "decoding response") {
+			t.Errorf("Get on a 64-byte body at a 64-byte cap = %v, want a decoding-response error", err)
+		}
+	})
+}
+
+// TestMaxAttemptsBelowOneMakesOneAttempt pins the documented floor of
+// WithMaxAttempts ("minimum 1 — 1 disables retries"): a non-positive count
+// still means exactly one attempt. The count is not handed to the transport
+// raw, where zero means "unset" and would silently restore the default three.
+func TestMaxAttemptsBelowOneMakesOneAttempt(t *testing.T) {
+	tests := []struct {
+		name     string
+		attempts int
+	}{
+		{name: "zero", attempts: 0},
+		{name: "negative", attempts: -3},
+		{name: "one", attempts: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var calls atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls.Add(1)
+				w.WriteHeader(http.StatusServiceUnavailable)
+			}))
+			defer srv.Close()
+
+			err := newTestClient(t, srv, WithMaxAttempts(tt.attempts)).Get(t.Context(), "/x", nil)
+			se, ok := errors.AsType[*StatusError](err)
+			if !ok || se.Code != http.StatusServiceUnavailable {
+				t.Errorf("Get under WithMaxAttempts(%d) = %v, want StatusError 503", tt.attempts, err)
+			}
+			if got := calls.Load(); got != 1 {
+				t.Errorf("WithMaxAttempts(%d): server saw %d requests, want 1", tt.attempts, got)
+			}
+		})
+	}
 }
 
 // TestGetRetriesTransient pins transparent retry: a 503 then 200 sequence

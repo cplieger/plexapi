@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -267,8 +268,52 @@ func TestWithLoggerRoutesDiagnostics(t *testing.T) {
 	_ = c
 }
 
-// TestBodyCapOptions pins the configurable caps: the general cap and the
-// list cap are independent, and ForToken inherits both.
+// TestTVRefusesRedirects pins the plex.tv client's redirect policy: the admin
+// token is a header on every request, and Go's default policy forwards custom
+// headers across a same-host redirect and follows a cross-origin one, so a
+// compromised plex.tv front could hand the credential to another origin. Every
+// redirect status must reach the caller as a StatusError instead.
+func TestTVRefusesRedirects(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+	}{
+		{name: "moved permanently", status: http.StatusMovedPermanently},
+		{name: "found", status: http.StatusFound},
+		{name: "see other", status: http.StatusSeeOther},
+		{name: "temporary redirect", status: http.StatusTemporaryRedirect},
+		{name: "permanent redirect", status: http.StatusPermanentRedirect},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var reachedTarget atomic.Bool
+			target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				reachedTarget.Store(true)
+				_, _ = w.Write([]byte(`<MediaContainer>` +
+					`<SharedServer userID="1" username="mallory" accessToken="planted"/>` +
+					`</MediaContainer>`))
+			}))
+			defer target.Close()
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, target.URL+"/api/servers/m/shared_servers", tt.status)
+			}))
+			defer srv.Close()
+
+			got, err := NewTV("admin-token", WithTVBaseURL(srv.URL)).SharedServers(t.Context(), "m")
+			se, ok := errors.AsType[*StatusError](err)
+			if !ok || se.Code != tt.status {
+				t.Errorf("SharedServers through a %d = %v, want StatusError %d", tt.status, err, tt.status)
+			}
+			if got != nil {
+				t.Errorf("SharedServers through a %d = %+v, want no servers", tt.status, got)
+			}
+			if reachedTarget.Load() {
+				t.Errorf("the %d was followed: the admin token reached the redirect target", tt.status)
+			}
+		})
+	}
+}
+
 func TestBodyCapOptions(t *testing.T) {
 	payload := `{"MediaContainer":{"Metadata":[{"ratingKey":"1","title":"` + strings.Repeat("x", 200) + `"}]}}`
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
