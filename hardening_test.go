@@ -157,6 +157,34 @@ func TestAccessors(t *testing.T) {
 	}
 }
 
+// TestDefaultClientShape pins the two http.Client fields the default
+// transport stack leaves at their ZERO value. newHTTPClient delegates the
+// composition to httpx.NewRetryClient, which sets only Transport and
+// CheckRedirect, so both of these are load-bearing by ABSENCE and an httpx
+// release that started filling either one in would silently change a
+// token-bearing client's posture with nothing in this module objecting.
+// Jar: a cookie jar on a token-bearing client is a credential-leakage
+// vector (a hostile Set-Cookie would then ride every later request).
+// Timeout: a Client.Timeout above a retrying transport caps the WHOLE retry
+// sequence and defeats the retries beneath it — the per-attempt bound is
+// the base transport's ResponseHeaderTimeout and the total bound is the
+// caller's context deadline.
+func TestDefaultClientShape(t *testing.T) {
+	const baseURL = "http://plex:32400"
+	c, err := New(baseURL, "tok")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.httpClient.Jar != nil {
+		t.Errorf("New(%q, ...) client Jar = %T, want nil (no cookie jar on a token-bearing client)",
+			baseURL, c.httpClient.Jar)
+	}
+	if c.httpClient.Timeout != 0 {
+		t.Errorf("New(%q, ...) client Timeout = %v, want 0 (a total cap would defeat the retry transport)",
+			baseURL, c.httpClient.Timeout)
+	}
+}
+
 // TestBaseURLCloneImmutable pins that BaseURL returns a copy: mutating the
 // returned URL must not re-target the client, whose requests keep resolving
 // against the configured origin. Handing out the internal pointer would let
