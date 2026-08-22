@@ -295,17 +295,15 @@ func newHTTPClient(o *options) (*http.Client, *http.Transport, error) {
 	if attempts < 1 {
 		attempts = -1
 	}
-	return &http.Client{
-		Transport: httpx.NewRetryRoundTripper(base, httpx.TransportConfig{
-			MaxAttempts: attempts,
-			BaseDelay:   o.baseDelay,
-			OnRetry:     o.onRetry,
-		}),
-		// Plex's API does not issue redirects; refuse to follow any. Go's
-		// default policy forwards custom headers (X-Plex-Token included) on
-		// cross-origin redirects — a hostile 302 would exfiltrate the token.
-		CheckRedirect: httpx.RefuseAllRedirects,
-	}, base, nil
+
+	// Plex's API does not issue redirects; refuse to follow any. Go's
+	// default policy forwards custom headers (X-Plex-Token included) on
+	// cross-origin redirects — a hostile 302 would exfiltrate the token.
+	return httpx.NewRetryClient(base, httpx.RefuseAllRedirects, httpx.TransportConfig{
+		MaxAttempts: attempts,
+		BaseDelay:   o.baseDelay,
+		OnRetry:     o.onRetry,
+	}), base, nil
 }
 
 // warnIfPlaintextURL emits one construction-time warning when the server
