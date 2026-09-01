@@ -6,11 +6,7 @@ import "fmt"
 // models: the endpoint paths, Plex's literal single-character filter
 // operators, the rating-key validation applied before any URL
 // interpolation, and — through the Path/ListPath return types — the read-cap
-// class each endpoint decodes under. Consumers that decode into their own
-// domain types (via the client's FetchMetadata / FetchMetadataList /
-// FetchDirectory generic methods, or Get) compose these builders instead of
-// re-owning path strings — a filter, path, or cap-class fix then lands in one
-// place, not in every importing repo.
+// class each endpoint decodes under.
 //
 // The `>=` in the history and recently-added filters is a wire contract:
 // one literal `>`, unencoded. Plex silently ignores a malformed (`>>=`) or
@@ -18,15 +14,12 @@ import "fmt"
 // server blows the read cap; Go's url.Parse preserves the literal form.
 
 // Path is a server-relative endpoint path whose response decodes under the
-// general read cap (WithMaxBodyBytes). The builder returning it decides the
-// cap class, so a call site cannot silently read a listing-sized endpoint
-// under the smaller cap or vice versa; construct one explicitly
+// general read cap (WithMaxBodyBytes). Construct one explicitly
 // (plexapi.Path("/x")) only for an endpoint no builder models.
 type Path string
 
 // ListPath is a server-relative full-listing endpoint path whose response
-// decodes under the large-listing read cap (WithMaxListBodyBytes) — section
-// listings are an order of magnitude larger than any other Plex response.
+// decodes under the large-listing read cap (WithMaxListBodyBytes).
 // Produced by the listing builders (SectionItemsPath, RecentlyAddedPath);
 // Client.FetchMetadataList accepts only this type.
 type ListPath string
@@ -40,12 +33,10 @@ func SessionsPath() Path { return "/status/sessions" }
 func SectionsPath() Path { return "/library/sections" }
 
 // HistoryPath returns the watch-history endpoint path filtered server-side
-// to entries viewed at or after sinceUnix, newest first. The filter is
-// literally `viewedAt>=N` (see the package comment on operator encoding).
-// It is deliberately a general-cap Path, not a ListPath: a filtered history
-// window fits the general cap, and an over-cap error here is the tripwire
-// for the malformed-operator failure mode (Plex answering with the FULL
-// unfiltered history).
+// to entries viewed at or after sinceUnix, newest first. It is
+// deliberately a general-cap Path, not a ListPath: an over-cap error here
+// is the tripwire for the malformed-operator failure mode (Plex answering
+// with the FULL unfiltered history).
 func HistoryPath(sinceUnix int64) Path {
 	return Path(fmt.Sprintf("/status/sessions/history/all?sort=viewedAt:desc&viewedAt>=%d", sinceUnix))
 }
@@ -60,10 +51,9 @@ func SectionItemsPath(section RatingKey) (ListPath, error) {
 }
 
 // RecentlyAddedPath returns a section's listing path filtered server-side
-// to items of metadataType added at or after sinceUnix, newest first. The
-// filter is literally `addedAt>=%d` (see the package comment on operator
-// encoding). A recently-added window is a section listing (ListPath): a
-// generous window on a large section outgrows the general cap.
+// to items of metadataType added at or after sinceUnix, newest first. A
+// recently-added window is a section listing (ListPath): a generous window
+// on a large section outgrows the general cap.
 func RecentlyAddedPath(section RatingKey, metadataType int, sinceUnix int64) (ListPath, error) {
 	if err := section.Validate(); err != nil {
 		return "", err

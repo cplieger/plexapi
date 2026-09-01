@@ -16,8 +16,8 @@ func fixtureServer(t *testing.T, routes map[string]string) (*httptest.Server, *[
 	var seen []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen = append(seen, r.Method+" "+r.RequestURI)
-		// Longest matching prefix wins (a bare "/" route would otherwise
-		// shadow everything on random map order).
+		// Longest matching prefix wins: a bare "/" route would otherwise
+		// shadow everything on random map order.
 		best := ""
 		for prefix := range routes {
 			if strings.HasPrefix(r.URL.Path, prefix) && len(prefix) > len(best) {
@@ -274,10 +274,9 @@ func TestCountSectionItems(t *testing.T) {
 
 // TestSessionsDecodesSessionGraph pins the LIVE /status/sessions wire shape,
 // quoted ids included (verified 2026-08-21 against Plex 1.43.3): Media.id,
-// Part.id and Stream.id arrive as JSON strings here while the same fields on
-// /library/metadata/<key> arrive as bare numbers (TestMetadataPolymorphic pins
-// that side). Modelling them as plain ints made every active session's payload
-// fail to decode, which took the whole MediaContainer with it.
+// Part.id and Stream.id arrive as JSON strings here while the same fields
+// on /library/metadata/<key> arrive as bare numbers (TestMetadataPolymorphic
+// pins that side).
 func TestSessionsDecodesSessionGraph(t *testing.T) {
 	srv, _ := fixtureServer(t, map[string]string{
 		"/status/sessions": `{"MediaContainer":{"Metadata":[
@@ -322,12 +321,10 @@ func TestSessionsDecodesSessionGraph(t *testing.T) {
 }
 
 // TestIdentityAndAdminAccount pins the real /accounts shape (verified live
-// 2026-07 against Plex 1.43.3): the id-0 managed placeholder with an empty
-// name comes first, the owner is id 1 under the server-local display name,
-// and shared users follow under their plex.tv global ids. The
-// /myplex/account fixture carries the real enveloped email-form payload
-// that made name-matching resolve the id-0 placeholder; the `seen`
-// assertion pins that AdminAccount no longer consults it at all.
+// 2026-07 against Plex 1.43.3): the id-0 managed placeholder comes first,
+// the owner is id 1, and shared users follow under their plex.tv global
+// ids. The `seen` assertion pins that AdminAccount never consults
+// /myplex/account.
 func TestIdentityAndAdminAccount(t *testing.T) {
 	srv, seen := fixtureServer(t, map[string]string{
 		"/myplex/account": `{"MyPlex":{"username":"admin@example.com"}}`,
@@ -482,10 +479,9 @@ func TestSharedServers(t *testing.T) {
 		}
 	})
 	t.Run("amplifying document rejected before the decode", func(t *testing.T) {
-		// A body well inside the wire cap whose nesting would grow the
-		// decoder's element stack one heap entry per three bytes. The preflight
-		// refuses it without tokenizing; the caller sees a bounds error, not a
-		// parsed empty list.
+		// Well inside the wire cap, but its nesting would grow the
+		// decoder's element stack one heap entry per three bytes; the
+		// preflight refuses it without tokenizing.
 		deep := strings.Repeat("<MediaContainer>", sharedServersLimits.MaxDepth+2)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte(deep))

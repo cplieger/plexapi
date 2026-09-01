@@ -106,11 +106,10 @@ func (c *Client) ItemsByGUID(ctx context.Context, guid string) ([]Item, error) {
 }
 
 // ShowForEpisodeGUID resolves an episode GUID to the rating key of the show
-// currently containing it — the handle back from a watch-history episode
-// GUID to its show after a library rebuild. Returns ("", nil) when the GUID
-// matches nothing or when matches disagree on their show (an ambiguous GUID
-// that must not drive a decision); a non-nil error means the lookup could
-// not be completed.
+// currently containing it. Returns ("", nil) when the GUID matches nothing
+// or when matches disagree on their show (an ambiguous GUID that must not
+// drive a decision); a non-nil error means the lookup could not be
+// completed.
 func (c *Client) ShowForEpisodeGUID(ctx context.Context, episodeGUID string) (string, error) {
 	items, err := c.ItemsByGUID(ctx, episodeGUID)
 	if err != nil {
@@ -137,13 +136,6 @@ func (c *Client) ShowForEpisodeGUID(ctx context.Context, episodeGUID string) (st
 // 0 means unfiltered). It requests a single item and reads the container's
 // totalSize body field — the X-Plex-Container-Total-Size header is used
 // nowhere because it is not populated for type-filtered queries.
-//
-// Named for the work rather than for the number: the other noun-named methods
-// on Client (Sections, Identity, Accounts, Providers) each name a RESOURCE, so
-// a request is the obvious reading, while a bare ContainerTotalSize read as a
-// property of something the caller already held. The rest of that naming
-// question is answered by the signature — a context plus an error is Go's cost
-// signal — but a noun that names no resource does not get that for free.
 func (c *Client) CountSectionItems(ctx context.Context, section RatingKey, metadataType int) (int64, error) {
 	path, err := SectionItemsPath(section)
 	if err != nil {

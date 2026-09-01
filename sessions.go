@@ -11,8 +11,7 @@ func (c *Client) Sessions(ctx context.Context) ([]Item, error) {
 
 // History returns watch-history entries viewed at or after sinceUnix,
 // newest first, filtered server-side (see HistoryPath for the
-// literal-operator wire contract: one `>`, unencoded — Plex silently
-// ignores a malformed operator and returns the FULL history).
+// literal-operator wire contract).
 func (c *Client) History(ctx context.Context, sinceUnix int64) ([]Item, error) {
 	return c.FetchMetadata[Item](ctx, HistoryPath(sinceUnix))
 }

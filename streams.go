@@ -9,11 +9,11 @@ import (
 // IDs are a struct rather than two adjacent ints because a transposition
 // type-checked and produced a request against a part that does not exist —
 // detectable only after the round trip, as a Plex error about the wrong
-// object, and indistinguishable at the call site from a genuinely stale ID.
+// object.
 //
-// Both fields are required. The zero value selects nothing meaningful: part 0
-// is not a Plex part id, so a zero StreamSelection reaches the server and is
-// refused there rather than silently retargeting.
+// Both fields are required. The zero value selects nothing meaningful: part
+// 0 is not a Plex part id, so a zero StreamSelection reaches the server and
+// is refused there rather than silently retargeting.
 type StreamSelection struct {
 	// PartID is the media part whose stream selection changes (Part.ID).
 	PartID int
@@ -26,9 +26,8 @@ type StreamSelection struct {
 //
 // Plex records stream-selection writes against the REQUESTING TOKEN's user
 // (unlike reads, which are not user-scoped): selecting for another user
-// requires that user's token — use ForToken. Falling back to the admin
-// token writes to the admin's view and silently drops the target user's
-// preference. Mutations are applied at most once (never retried).
+// requires that user's token — use ForToken. Mutations are applied at most
+// once (never retried).
 func (c *Client) SetAudioStream(ctx context.Context, sel StreamSelection) error {
 	return c.put(ctx, fmt.Sprintf("/library/parts/%d?audioStreamID=%d&allParts=1", sel.PartID, sel.StreamID))
 }
