@@ -106,7 +106,7 @@ func TestCAPinnedTLS(t *testing.T) {
 }
 
 // TestTransportErrorRedacted pins that a dial failure's error text does not
-// embed the full request URL (url.Error unwrapping).
+// embed the full request URL.
 func TestTransportErrorRedacted(t *testing.T) {
 	c, err := New("http://127.0.0.1:1", "tok", WithMaxAttempts(1), WithHTTPClient(&http.Client{}))
 	if err != nil {
@@ -139,8 +139,8 @@ func TestAccessors(t *testing.T) {
 	if (&StatusError{Method: "GET", Path: "/x", Status: "401 Unauthorized", Code: 401}).Error() == "" {
 		t.Error("empty StatusError message")
 	}
-	// RedirectPolicy exposes the policy (refuse-all by construction) without
-	// handing out the live *http.Client.
+	// RedirectPolicy exposes the policy without handing out the live
+	// *http.Client.
 	rp := c.RedirectPolicy()
 	if rp == nil {
 		t.Fatal("RedirectPolicy = nil for a default-constructed client")
@@ -158,17 +158,10 @@ func TestAccessors(t *testing.T) {
 }
 
 // TestDefaultClientShape pins the two http.Client fields the default
-// transport stack leaves at their ZERO value. newHTTPClient delegates the
-// composition to httpx.NewRetryClient, which sets only Transport and
-// CheckRedirect, so both of these are load-bearing by ABSENCE and an httpx
-// release that started filling either one in would silently change a
-// token-bearing client's posture with nothing in this module objecting.
-// Jar: a cookie jar on a token-bearing client is a credential-leakage
-// vector (a hostile Set-Cookie would then ride every later request).
-// Timeout: a Client.Timeout above a retrying transport caps the WHOLE retry
-// sequence and defeats the retries beneath it — the per-attempt bound is
-// the base transport's ResponseHeaderTimeout and the total bound is the
-// caller's context deadline.
+// transport stack leaves at their ZERO value: Jar (a cookie jar on a
+// token-bearing client is a credential-leakage vector) and Timeout (a
+// Client.Timeout above a retrying transport caps the whole retry sequence
+// and defeats the retries beneath it).
 func TestDefaultClientShape(t *testing.T) {
 	const baseURL = "http://plex:32400"
 	c, err := New(baseURL, "tok")
@@ -186,10 +179,7 @@ func TestDefaultClientShape(t *testing.T) {
 }
 
 // TestBaseURLCloneImmutable pins that BaseURL returns a copy: mutating the
-// returned URL must not re-target the client, whose requests keep resolving
-// against the configured origin. Handing out the internal pointer would let
-// any caller redirect every subsequent token-bearing request — the same
-// class the server-relative path guard closes.
+// returned URL must not re-target the client.
 func TestBaseURLCloneImmutable(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -213,12 +203,9 @@ func TestBaseURLCloneImmutable(t *testing.T) {
 	})
 
 	// Userinfo is the one url.URL field held behind a pointer, so it is the
-	// one a struct copy shares. Mutating THROUGH that pointer is legal from
-	// outside net/url (*u.User = url.Userinfo{} needs no field access), and
-	// ResolveReference carries User into every resolved request URL, so a
-	// shared pointer let a caller strip the client's own credentials from
-	// every subsequent request. Only a deep copy closes it; the value-field
-	// subtest above cannot see this, which is why the shallow copy survived.
+	// one a struct copy shares; ResolveReference carries User into every
+	// resolved request URL, so a shared pointer let a caller strip the
+	// client's own credentials from every subsequent request.
 	t.Run("userinfo behind the pointer", func(t *testing.T) {
 		host := strings.TrimPrefix(srv.URL, "http://")
 		c, err := New("http://user:secret@"+host, "test-token")
@@ -240,8 +227,8 @@ func TestBaseURLCloneImmutable(t *testing.T) {
 }
 
 // TestWithLoggerRoutesDiagnostics pins the logger seam: both library log
-// sites (plaintext warning, over-cap warning) route through the configured
-// logger, so a consumer can quiet or redirect them.
+// sites route through the configured logger, so a consumer can quiet or
+// redirect them.
 func TestWithLoggerRoutesDiagnostics(t *testing.T) {
 	rec := &warnRecorder{}
 	custom := slog.New(rec)
@@ -296,11 +283,10 @@ func TestWithLoggerRoutesDiagnostics(t *testing.T) {
 	_ = c
 }
 
-// TestTVRefusesRedirects pins the plex.tv client's redirect policy: the admin
-// token is a header on every request, and Go's default policy forwards custom
-// headers across a same-host redirect and follows a cross-origin one, so a
-// compromised plex.tv front could hand the credential to another origin. Every
-// redirect status must reach the caller as a StatusError instead.
+// TestTVRefusesRedirects pins the plex.tv client's redirect policy: every
+// redirect status must reach the caller as a StatusError, since Go's
+// default policy forwards custom headers across a same-host redirect and
+// follows a cross-origin one.
 func TestTVRefusesRedirects(t *testing.T) {
 	tests := []struct {
 		name   string

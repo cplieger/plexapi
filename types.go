@@ -15,9 +15,7 @@ type MC[T any] struct {
 }
 
 // FlexInt decodes a Plex JSON field that may arrive as a number or a quoted
-// numeric string. Plex is inconsistent on numeric fields across endpoints
-// (an episode index can be 14 or "14"); FlexInt absorbs both so callers use
-// a plain int. Null, absent, and empty-string values decode to 0.
+// numeric string. Null, absent, and empty-string values decode to 0.
 type FlexInt int
 
 // UnmarshalJSON accepts a JSON number, a quoted numeric string, null, or an
@@ -57,18 +55,17 @@ func (f *FlexInt) UnmarshalJSON(data []byte) error {
 }
 
 // RatingKey is Plex's opaque numeric-string identifier for a library item
-// (movie, show, season, episode) or section. The wire representation is
-// always a string; the type exists so keys are validated once at the API
-// boundary instead of being interpolated into URL paths unchecked.
+// (movie, show, season, episode) or section. The type exists so keys are
+// validated once at the API boundary instead of being interpolated into URL
+// paths unchecked.
 type RatingKey string
 
 // String returns the key as a plain string.
 func (r RatingKey) String() string { return string(r) }
 
-// Validate reports whether the key is a non-empty numeric string. Plex
-// rating keys are always numeric in practice; anything else indicates a
-// programming error (a foreign identifier in a rating-key slot) that must
-// not reach URL construction. The error names the offending value.
+// Validate reports whether the key is a non-empty numeric string. Anything
+// else indicates a programming error (a foreign identifier in a
+// rating-key slot) that must not reach URL construction.
 func (r RatingKey) Validate() error {
 	if _, err := strconv.Atoi(string(r)); err != nil {
 		return fmt.Errorf("invalid rating key %q", string(r))
@@ -131,11 +128,10 @@ type Label struct {
 //
 // ID is FlexInt because the Media→Part→Stream graph is the one place Plex
 // disagrees with itself about the wire type of an id: /library/metadata/<key>
-// and /library/sections/<n>/all send a bare number, /status/sessions sends the
-// same field quoted (verified live 2026-08-21 against Plex 1.43.3). A plain int
-// makes an active session's payload undecodable, and because the failure is a
-// decode error on the whole MediaContainer it takes every OTHER field on every
-// session with it.
+// and /library/sections/<n>/all send a bare number, /status/sessions sends
+// the same field quoted (verified live 2026-08-21 against Plex 1.43.3). A
+// plain int makes an active session's payload undecodable and takes every
+// other field on the MediaContainer down with it.
 type Media struct {
 	VideoResolution string  `json:"videoResolution"`
 	Part            []Part  `json:"Part"`
@@ -144,8 +140,8 @@ type Media struct {
 }
 
 // Part is one file of a Media, wrapping its streams. Decision is populated
-// on session responses (the transcoder's per-part verdict). ID is FlexInt for
-// the reason given on Media.
+// on session responses (the transcoder's per-part verdict). ID is FlexInt
+// for the reason given on Media.
 type Part struct {
 	Decision string   `json:"decision"`
 	Stream   []Stream `json:"Stream"`

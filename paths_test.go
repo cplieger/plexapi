@@ -8,9 +8,8 @@ import (
 	"testing"
 )
 
-// TestPathBuilders pins the exact wire path each builder produces — the
-// single-owner grammar consumers compose instead of hand-building strings.
-// The `>=` assertions are the wire contract: one literal `>`, never doubled
+// TestPathBuilders pins the exact wire path each builder produces. The
+// `>=` assertions are the wire contract: one literal `>`, never doubled
 // and never URL-encoded (Plex silently ignores a malformed operator and
 // returns the unfiltered set).
 func TestPathBuilders(t *testing.T) {
@@ -98,11 +97,8 @@ func TestPathBuilders(t *testing.T) {
 	}
 }
 
-// TestBuilderCapClasses pins each builder's descriptor type — the
-// compile-time contract binding an endpoint to its read-cap class, so the
-// same endpoint cannot silently read under two different caps at different
-// call sites (the drift that put a consumer's RecentlyAdded under the
-// general cap while the typed method used the list cap).
+// TestBuilderCapClasses pins each builder's descriptor type: the
+// compile-time contract binding an endpoint to its read-cap class.
 func TestBuilderCapClasses(t *testing.T) {
 	requirePath := func(Path) {}
 	requireListPath := func(ListPath) {}
@@ -142,8 +138,7 @@ func TestBuilderCapClasses(t *testing.T) {
 	requirePath(leaves)
 }
 
-// consumerItem is a consumer-owned decode type (deliberately NOT Item) —
-// the shape FetchMetadata exists to serve.
+// consumerItem is a consumer-owned decode type (deliberately NOT Item).
 type consumerItem struct {
 	RatingKey string  `json:"ratingKey"`
 	Title     string  `json:"title"`
@@ -157,8 +152,8 @@ type consumerSection struct {
 }
 
 // TestFetchMetadataConsumerType pins the exported decode kernel: a
-// consumer-owned type decodes through the Metadata envelope with the full
-// hardened pipeline underneath, composed with a path builder.
+// consumer-owned type decodes through the Metadata envelope, composed with
+// a path builder.
 func TestFetchMetadataConsumerType(t *testing.T) {
 	srv, seen := fixtureServer(t, map[string]string{
 		"/status/sessions/history/all": `{"MediaContainer":{"Metadata":[
@@ -195,7 +190,7 @@ func TestFetchDirectoryConsumerType(t *testing.T) {
 
 // TestFetchCapClasses pins the cap split: FetchMetadata enforces the
 // general cap while FetchMetadataList admits the same body under a raised
-// list cap — the exported mirror of the SectionItems/Sessions split.
+// list cap.
 func TestFetchCapClasses(t *testing.T) {
 	payload := `{"MediaContainer":{"Metadata":[{"ratingKey":"1","title":"` + strings.Repeat("x", 200) + `"}]}}`
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -213,9 +208,8 @@ func TestFetchCapClasses(t *testing.T) {
 }
 
 // TestBaseTransport pins the protocol-upgrade seam: the accessor returns an
-// independent clone of the configured base transport (CA trust + the
-// per-attempt header timeout, no retry wrapper), and returns nil when the
-// caller supplied its own http.Client.
+// independent clone of the configured base transport, and returns nil when
+// the caller supplied its own http.Client.
 func TestBaseTransport(t *testing.T) {
 	t.Run("nil for WithHTTPClient", func(t *testing.T) {
 		c, err := New("http://plex:32400", "tok", WithHTTPClient(&http.Client{}))
@@ -254,16 +248,15 @@ func TestBaseTransport(t *testing.T) {
 			t.Fatal(err)
 		}
 		// A bare client over the returned base transport must complete the
-		// TLS handshake against the pinned self-signed server — the exact
-		// trust reuse a websocket dialer needs.
+		// TLS handshake against the pinned self-signed server.
 		hc := &http.Client{Transport: c.BaseTransport()}
 		resp, err := hc.Get(srv.URL)
 		if err != nil {
 			t.Fatalf("GET over BaseTransport: %v", err)
 		}
 		resp.Body.Close()
-		// And a DefaultTransport-based client must NOT trust it, proving
-		// the pin (not the OS store) carried the handshake above.
+		// A DefaultTransport-based client must NOT trust it, proving the
+		// pin (not the OS store) carried the handshake above.
 		plain := &http.Client{}
 		if resp, err := plain.Get(srv.URL); err == nil {
 			resp.Body.Close()

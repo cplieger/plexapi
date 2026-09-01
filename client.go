@@ -16,24 +16,17 @@ import (
 	"github.com/cplieger/httpx/v5"
 )
 
-// Default read caps per endpoint class. A single item or a session/history
-// page fits well inside the general cap; a full library-section listing can
-// be an order of magnitude larger. Both are configurable (WithMaxBodyBytes,
-// WithMaxListBodyBytes) for deployments whose libraries outgrow them.
-const (
-	// DefaultMaxBodyBytes caps metadata, session, history, and server-info
-	// responses (10 MB).
-	DefaultMaxBodyBytes = 10 << 20
-	// DefaultMaxListBodyBytes caps full section listings (40 MB).
-	DefaultMaxListBodyBytes = 40 << 20
-)
+// DefaultMaxBodyBytes caps metadata, session, history, and server-info
+// responses (10 MB).
+const DefaultMaxBodyBytes = 10 << 20
+
+// DefaultMaxListBodyBytes caps full section listings (40 MB).
+const DefaultMaxListBodyBytes = 40 << 20
 
 // Transport/retry defaults. Attempt counts are total (3 = first try + 2
-// retries). The per-attempt response-header timeout lives
-// on the transport, NOT as an http.Client.Timeout: a client-level timeout
-// would wrap the retry round-tripper and cap the whole sequence, defeating
-// the retries it sits above; on the transport a stalled attempt fails as a
-// retryable net.Error instead.
+// retries). The per-attempt response-header timeout lives on the
+// transport, not as an http.Client.Timeout, which would cap the whole
+// retry sequence instead of just one attempt.
 const (
 	defaultMaxAttempts      = 3
 	defaultBaseDelay        = 200 * time.Millisecond
@@ -71,16 +64,15 @@ type options struct {
 
 // WithHTTPClient supplies a caller-owned *http.Client, replacing the
 // built-in transport entirely (no retry round-tripper, no CA pinning, no
-// redirect policy are installed — the caller owns all of it). Intended for
-// tests and callers with bespoke transport needs.
+// redirect policy are installed). Intended for tests and callers with
+// bespoke transport needs.
 func WithHTTPClient(hc *http.Client) Option {
 	return func(o *options) { o.httpClient = hc }
 }
 
 // WithCACertPEM pins the CA(s) in pem as the sole TLS trust anchors, for a
-// Plex behind a self-signed or private CA. Verification stays ON. The
-// caller owns reading the PEM (the library does no file I/O); an empty pem
-// is an error at construction.
+// Plex behind a self-signed or private CA. The caller owns reading the PEM
+// (the library does no file I/O); an empty pem is an error at construction.
 func WithCACertPEM(pem []byte) Option {
 	return func(o *options) { o.caPEM = pem }
 }
@@ -98,23 +90,20 @@ func WithBaseDelay(d time.Duration) Option {
 }
 
 // WithTimeout sets the per-request ceiling applied ONLY when the caller's
-// context has no deadline (default 2m). A caller deadline is always the
-// authoritative budget and is never undercut.
+// context has no deadline (default 2m).
 func WithTimeout(d time.Duration) Option {
 	return func(o *options) { o.timeout = d }
 }
 
 // WithOnRetry installs a per-retry observability hook (attempt number,
 // request, response, error), forwarded to the underlying round-tripper.
-// Consumers use it to surface a retry counter metric.
 func WithOnRetry(fn httpx.OnRetry) Option {
 	return func(o *options) { o.onRetry = fn }
 }
 
 // WithLogger sets the slog.Logger for the client's own diagnostics (the
 // construction-time plaintext-URL warning and the over-cap response
-// warning). Defaults to slog.Default(); pass a level-filtered or discard
-// logger to quiet them.
+// warning). Defaults to slog.Default().
 func WithLogger(l *slog.Logger) Option {
 	return func(o *options) {
 		if l != nil {
@@ -135,9 +124,7 @@ func WithMaxBodyBytes(n int64) Option {
 }
 
 // WithMaxListBodyBytes sets the read cap for full section listings
-// (default DefaultMaxListBodyBytes) — the knob for libraries large enough
-// that a section's listing outgrows the default. Non-positive values are
-// ignored.
+// (default DefaultMaxListBodyBytes). Non-positive values are ignored.
 func WithMaxListBodyBytes(n int64) Option {
 	return func(o *options) {
 		if n > 0 {
@@ -149,16 +136,8 @@ func WithMaxListBodyBytes(n int64) Option {
 // Token is a Plex authentication token, the credential sent as X-Plex-Token.
 //
 // It is a distinct type so it cannot be transposed with the server URL on
-// [New]: the two are adjacent and both are strings on the wire. Before this,
-// a swapped pair was caught only because a token does not parse as an
-// http(s) URL — detection at run time, and only because New happens to
-// validate. A named type makes a swapped pair of VARIABLES a compile error
-// instead. (Two untyped string LITERALS still convert either way, which is
-// why New keeps its URL validation.)
-//
-// plexapi declares its own rather than reusing another package's credential
-// type: that would put a dependency in this package's public contract, and a
-// caller would have to import it just to build a client.
+// [New]: the two are adjacent and both are strings on the wire, and a named
+// type makes a swapped pair of variables a compile error.
 type Token string
 
 // New parses and validates baseURL (http/https scheme, non-empty host) and
@@ -166,9 +145,8 @@ type Token string
 // OS trust store or the pinned CA from WithCACertPEM, a per-attempt
 // response-header timeout, an httpx retry round-tripper (429/502/503/504 +
 // transient transport errors, honoring Retry-After), and a refuse-all
-// redirect policy so the token can never ride a hostile 3xx. Construction
-// warns via slog when baseURL is plain http to a non-local host (the token
-// would transit unencrypted).
+// redirect policy. Construction warns via slog when baseURL is plain http
+// to a non-local host.
 func New(baseURL string, token Token, opts ...Option) (*Client, error) {
 	parsed, err := url.Parse(baseURL)
 	if err != nil {
@@ -217,7 +195,6 @@ func New(baseURL string, token Token, opts ...Option) (*Client, error) {
 // ForToken returns a Client for the same server and transport but a
 // different token — the per-user client for user-scoped writes (Plex
 // records a stream-selection PUT against the requesting token's user).
-// The underlying connection pool is shared.
 func (c *Client) ForToken(token Token) *Client {
 	clone := *c
 	clone.token = token
@@ -226,9 +203,7 @@ func (c *Client) ForToken(token Token) *Client {
 
 // BaseURL returns a deep copy of the configured server base URL (for
 // deriving a websocket URL or logging the host). Mutating it never
-// re-targets the client, whose every request resolves against the internal
-// original — handing out that pointer would reopen the origin-mutation
-// class the server-relative path guard exists to close.
+// re-targets the client.
 func (c *Client) BaseURL() *url.URL {
 	return c.baseURL.Clone()
 }
@@ -242,23 +217,17 @@ func (c *Client) Token() Token { return c.token }
 
 // RedirectPolicy returns the client's redirect policy (its CheckRedirect
 // function) so a caller-owned protocol upgrade — a websocket dialer — can
-// enforce the same policy on its own http.Client without access to the
-// live client. Pair it with BaseTransport, which carries the trust half of
-// that seam. Nil when the client was built via WithHTTPClient without a
-// CheckRedirect (net/http's follow-all default; the caller owns policy on
-// that path).
+// enforce the same policy on its own http.Client. Nil when the client was
+// built via WithHTTPClient without a CheckRedirect.
 func (c *Client) RedirectPolicy() httpx.CheckRedirect { return c.httpClient.CheckRedirect }
 
 // BaseTransport returns an independent clone of the hardened base transport
-// the client was constructed with — the same CA trust (WithCACertPEM or the
-// OS store) and per-attempt response-header timeout, WITHOUT the retry
-// round-tripper. It is the seam for a caller-owned protocol upgrade (a
-// WebSocket dialer) that must share the client's trust settings while
-// owning its own dial policy: the retry wrapper's base transport is not
-// otherwise reachable, and rebuilding a transport from scratch silently
-// drops a pinned CA. Mutating the returned clone never affects the client.
-// Returns nil when the client was built with WithHTTPClient (the caller
-// already owns that transport).
+// the client was constructed with — the same CA trust and per-attempt
+// response-header timeout, without the retry round-tripper. It is the seam
+// for a caller-owned protocol upgrade (a WebSocket dialer) that must share
+// the client's trust settings while owning its own dial policy. Mutating
+// the returned clone never affects the client. Returns nil when the client
+// was built with WithHTTPClient.
 func (c *Client) BaseTransport() *http.Transport {
 	if c.baseTransport == nil {
 		return nil
@@ -267,8 +236,7 @@ func (c *Client) BaseTransport() *http.Transport {
 }
 
 // newHTTPClient assembles the hardened default transport stack, returning
-// the client and the base transport under its retry round-tripper (retained
-// so BaseTransport can clone it).
+// the client and the base transport under its retry round-tripper.
 func newHTTPClient(o *options) (*http.Client, *http.Transport, error) {
 	var base *http.Transport
 	if len(o.caPEM) > 0 {
@@ -286,19 +254,15 @@ func newHTTPClient(o *options) (*http.Client, *http.Transport, error) {
 	}
 	base.ResponseHeaderTimeout = perAttemptHeaderTimeout
 
-	// httpx v3 TransportConfig: MaxAttempts 0 means "unset, take the default";
-	// a NEGATIVE value means exactly one attempt. plexapi's WithMaxAttempts
-	// contract is "minimum 1 — 1 disables retries", so any n < 1 maps to -1
-	// (try once) rather than being handed to the struct raw, where 0 would
-	// silently mean 3 total attempts.
+	// httpx's TransportConfig.MaxAttempts: 0 means "unset, take the
+	// default"; WithMaxAttempts's contract is "minimum 1 — 1 disables
+	// retries", so n < 1 maps to -1 (try once) rather than 0, which would
+	// silently restore the default 3.
 	attempts := o.attempts
 	if attempts < 1 {
 		attempts = -1
 	}
 
-	// Plex's API does not issue redirects; refuse to follow any. Go's
-	// default policy forwards custom headers (X-Plex-Token included) on
-	// cross-origin redirects — a hostile 302 would exfiltrate the token.
 	return httpx.NewRetryClient(base, httpx.RefuseAllRedirects, httpx.TransportConfig{
 		MaxAttempts: attempts,
 		BaseDelay:   o.baseDelay,
@@ -307,10 +271,8 @@ func newHTTPClient(o *options) (*http.Client, *http.Transport, error) {
 }
 
 // warnIfPlaintextURL emits one construction-time warning when the server
-// URL is http:// to a non-loopback, non-docker-short-name host: the token
-// transits the network unencrypted. A dotless hostname is treated as a
-// docker network name (trusted bridge) and stays quiet. Routed through the
-// configured logger so a deliberate plaintext deployment can quiet it.
+// URL is http:// to a non-loopback, non-docker-short-name host. A dotless
+// hostname is treated as a docker network name and stays quiet.
 func warnIfPlaintextURL(logger *slog.Logger, u *url.URL) {
 	if u == nil || u.Scheme != "http" {
 		return
@@ -332,10 +294,9 @@ func warnIfPlaintextURL(logger *slog.Logger, u *url.URL) {
 }
 
 // resolvePath validates that path is server-relative and resolves it
-// against the base URL. An absolute ("https://evil/x") or scheme-relative
-// ("//evil/x") reference would override the configured host via
-// ResolveReference and leak the token to that origin; every legitimate
-// Plex path is host-relative, so those are rejected outright.
+// against the base URL. An absolute or scheme-relative reference would
+// override the configured host via ResolveReference and leak the token to
+// that origin.
 func (c *Client) resolvePath(path string) (string, error) {
 	ref, err := url.Parse(path)
 	if err != nil {
@@ -348,13 +309,10 @@ func (c *Client) resolvePath(path string) (string, error) {
 }
 
 // do issues one authenticated request and decodes the JSON body into
-// result (skipped when result is nil or the body is empty — some Plex
-// endpoints return an empty body instead of an empty container). 404 maps
-// to ErrNotFound, other non-200s to *StatusError; bodies are capped at
+// result (skipped when result is nil or the body is empty). 404 maps to
+// ErrNotFound, other non-200s to *StatusError; bodies are capped at
 // maxBytes with the overflow reported as *ResponseTooLargeError.
 func (c *Client) do(ctx context.Context, method, path string, maxBytes int64, result any) error {
-	// The client's WithTimeout default applies only when the caller brought
-	// no deadline of its own (a caller deadline is never undercut).
 	ctx, cancel := httpx.ContextWithDefaultTimeout(ctx, c.timeout)
 	defer cancel()
 
@@ -371,9 +329,6 @@ func (c *Client) do(ctx context.Context, method, path string, maxBytes int64, re
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		// LogSafeError strips the URL a *url.Error embeds (defense in depth:
-		// the URL never carries the token, and the reduced form keeps error
-		// strings stable for log grammars).
 		return fmt.Errorf("plex %s %s: %w", method, path, httpx.LogSafeError(err))
 	}
 	defer resp.Body.Close()
@@ -394,46 +349,31 @@ func (c *Client) do(ctx context.Context, method, path string, maxBytes int64, re
 	return c.decodeBody(method, path, resp.Body, maxBytes, result)
 }
 
-// decodeBody stream-decodes a capped JSON body into result. The decoder
-// pulls through a counting reader bounded at cap+1 bytes, so peak memory is
-// the decoder's window plus the decoded values — not a full body buffer
-// followed by a decode copy (which doubled peak memory on 40 MB listings).
-// The +1 probe byte distinguishes exactly-at-cap from over-cap (mirroring
-// httpx.ReadLimitedBody), and the over-cap check outranks every decode
-// error, so an oversized body always surfaces as the typed
-// *ResponseTooLargeError — never as a truncation-shaped decode error. An
-// empty body (zero bytes) decodes to nothing: some Plex endpoints answer
-// 200 with no payload instead of an empty container. Trailing
-// non-whitespace after the JSON value stays an error, matching
-// json.Unmarshal's contract.
+// decodeBody stream-decodes a capped JSON body into result. The over-cap
+// check outranks every decode error, so an oversized body always surfaces
+// as the typed *ResponseTooLargeError rather than a truncation-shaped
+// decode error. An empty body decodes to nothing, since some Plex
+// endpoints answer 200 with no payload. Trailing non-whitespace after the
+// JSON value stays an error, matching json.Unmarshal's contract.
 func (c *Client) decodeBody(method, path string, body io.Reader, maxBytes int64, result any) error {
 	cr := &countingReader{r: io.LimitReader(body, maxBytes+1)}
 	dec := json.NewDecoder(cr)
 	decErr := dec.Decode(result)
 
 	overCap := func() error {
-		// Operator-facing breadcrumb: an over-cap body almost always means
-		// an unfiltered or oversized response class, worth surfacing in
-		// logs beyond the one failed call. Routed through the configured
-		// logger.
 		c.logger.Warn("plexapi: response exceeded read cap",
 			"method", method, "path", path, "cap_bytes", maxBytes)
 		return &ResponseTooLargeError{Path: path, Limit: maxBytes}
 	}
-	// drain consumes the capped remainder without buffering (best-effort:
-	// a read error mid-drain just stops the count). The buffered variant
-	// always read the whole capped body BEFORE classifying, so over-cap
-	// had to win over any decode error — a decoder that aborts on the
-	// first garbage byte of a 50 MB body must still report the typed
-	// over-cap error, not the garbage. The drain restores that ordering
-	// while keeping the streaming memory profile.
+	// drain consumes the capped remainder without buffering, restoring the
+	// pre-streaming ordering (over-cap wins over any decode error) while
+	// keeping the streaming memory profile.
 	drain := func() { _, _ = io.Copy(io.Discard, cr) }
 
 	if decErr == nil {
-		// The decoder stops at the end of the first JSON value; reject
-		// trailing non-whitespace like json.Unmarshal does. Probe from the
-		// decoder's buffer BEFORE draining the raw remainder (the drain
-		// bypasses that buffer).
+		// The decoder stops at the end of the first JSON value; probe from
+		// its buffer BEFORE draining the raw remainder (the drain bypasses
+		// that buffer).
 		_, tokErr := dec.Token()
 		drain()
 		if cr.n > maxBytes {
@@ -479,53 +419,39 @@ func (cr *countingReader) Read(p []byte) (int, error) {
 }
 
 // Get fetches a server-relative path and decodes the JSON response into
-// result. It is the escape hatch for endpoints without a typed method
-// (decode through MC[T] for container-wrapped payloads); the same
-// hardening (path guard, redirect refusal, retries, body cap) applies.
+// result. It is the escape hatch for endpoints without a typed method; the
+// same hardening (path guard, redirect refusal, retries, body cap) applies.
 func (c *Client) Get(ctx context.Context, path string, result any) error {
 	return c.do(ctx, http.MethodGet, path, c.maxBody, result)
 }
 
-// put issues a PUT (no body, like Plex's parameterized mutation endpoints)
-// and discards the response. Never retried.
+// put issues a PUT (no body) and discards the response. Never retried.
 func (c *Client) put(ctx context.Context, path string) error {
 	return c.do(ctx, http.MethodPut, path, c.maxBody, nil)
 }
 
 // FetchMetadata fetches a general-cap endpoint and decodes the
-// {"MediaContainer":{"Metadata":[...]}} envelope — the dominant Plex
-// response shape — into the caller-owned item type T. It is the exported
-// decode kernel for consumers that keep their own domain models: the same
-// generic the typed Item methods are built on.
-// Compose it with the path builders (HistoryPath, MetadataPath, ...): the
-// builder's return type carries the endpoint's read-cap class, so a
-// listing-sized endpoint cannot compile against the general cap — use
-// FetchMetadataList for the ListPath builders (SectionItemsPath,
+// {"MediaContainer":{"Metadata":[...]}} envelope into the caller-owned item
+// type T. Compose it with the path builders (HistoryPath, MetadataPath,
+// ...); use FetchMetadataList for the ListPath builders (SectionItemsPath,
 // RecentlyAddedPath).
 //
 // A generic METHOD (Go 1.27): the type parameter is the caller's item type,
-// which the receiver knows nothing about, so before 1.27 this had to be a
-// package-level function taking the client as its first argument. It is a
-// method now because the operation belongs to the client's namespace. The
-// consequence to know: a generic method can never satisfy an interface, so
-// a consumer that wants to mock this surface must wrap it in a
-// non-generic method of its own (see plex-language-sync's internal/plex
-// adapter, which does exactly that).
+// so a consumer that wants to mock this surface wraps it in a non-generic
+// method of its own (see plex-language-sync's internal/plex adapter).
 func (c *Client) FetchMetadata[T any](ctx context.Context, path Path) ([]T, error) {
 	return fetchMetadata[T](ctx, c, string(path), c.maxBody)
 }
 
 // FetchMetadataList is FetchMetadata under the large-listing read cap
-// (WithMaxListBodyBytes). It accepts only ListPath — the full-listing
-// endpoints (SectionItemsPath, RecentlyAddedPath), whose responses on a big
-// library are an order of magnitude larger than any other Plex response.
+// (WithMaxListBodyBytes). It accepts only ListPath.
 func (c *Client) FetchMetadataList[T any](ctx context.Context, path ListPath) ([]T, error) {
 	return fetchMetadata[T](ctx, c, string(path), c.maxListBody)
 }
 
 // FetchDirectory fetches a general-cap endpoint and decodes the
 // {"MediaContainer":{"Directory":[...]}} envelope (library sections) into
-// the caller-owned type T. The Directory counterpart of FetchMetadata.
+// the caller-owned type T.
 func (c *Client) FetchDirectory[T any](ctx context.Context, path Path) ([]T, error) {
 	var resp MC[struct {
 		Directory []T `json:"Directory"`
@@ -537,10 +463,7 @@ func (c *Client) FetchDirectory[T any](ctx context.Context, path Path) ([]T, err
 }
 
 // fetchMetadata is the cap-parameterized core behind FetchMetadata and
-// FetchMetadataList. It stays a function taking the client because the two
-// methods above already own the receiver, and a third method differing only
-// in an int64 argument would advertise the cap as a caller's choice when the
-// path's type is what decides it.
+// FetchMetadataList.
 func fetchMetadata[T any](ctx context.Context, c *Client, path string, maxBytes int64) ([]T, error) {
 	var resp MC[struct {
 		Metadata []T `json:"Metadata"`

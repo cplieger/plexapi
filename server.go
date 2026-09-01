@@ -29,23 +29,16 @@ func (c *Client) Accounts(ctx context.Context) ([]Account, error) {
 }
 
 // ownerAccountID is the server-local system-account id Plex reserves for
-// the server owner in GET /accounts (id 0 is the managed placeholder with
-// an empty name). Sessions and watch history report the owner under this
-// same server-local id, so resolving the admin here keeps the returned
-// Account.ID in the id space consumers compare session/history ids
-// against.
+// the server owner in GET /accounts (id 0 is the managed placeholder).
 const ownerAccountID = 1
 
 // AdminAccount resolves the server's admin (owner) system account: the
 // owner is always account id 1 in the system accounts list.
 //
-// It deliberately does not consult /myplex/account. That endpoint's
-// username is the plex.tv account email wrapped in a {"MyPlex":{...}}
-// envelope; the previous implementation decoded a top-level username
-// (silently yielding ""), name-matched it against the id-0 placeholder
-// account (name=""), and returned the placeholder as the admin — so
-// consumers comparing session user ids against the admin id skipped every
-// owner event. Verified live 2026-07 against Plex 1.43.3.
+// It deliberately does not consult /myplex/account: that endpoint's
+// username decodes as "" and previously name-matched the id-0 placeholder
+// account, so consumers comparing session user ids against the admin id
+// skipped every owner event. Verified live 2026-07 against Plex 1.43.3.
 func (c *Client) AdminAccount(ctx context.Context) (*Account, error) {
 	accounts, err := c.Accounts(ctx)
 	if err != nil {

@@ -13,8 +13,8 @@ import (
 	"github.com/cplieger/xmlx"
 )
 
-// plexTVBase is the plex.tv API origin. Tests point a TV client at an
-// httptest server via WithTVBaseURL, which overrides this per instance.
+// plexTVBase is the plex.tv API origin. Tests override this per instance
+// via WithTVBaseURL.
 const plexTVBase = "https://plex.tv"
 
 // SharedServer is one <SharedServer> element from the plex.tv
@@ -36,8 +36,7 @@ type sharedServersXML struct {
 // tokenizes it. The shape is fixed and tiny: one MediaContainer holding a flat
 // list of attribute-only SharedServer elements, so every bound sits far above
 // the real contract while still rejecting the amplification a wire-only byte cap
-// admits. MaxElements is generous against the largest plausible share list; a
-// Plex account with more shares than this has bigger problems than a parse.
+// admits.
 var sharedServersLimits = xmlx.Limits{
 	MaxTextRunBytes: 8 << 10,
 	MaxTokenBytes:   16 << 10,
@@ -47,10 +46,9 @@ var sharedServersLimits = xmlx.Limits{
 }
 
 // TV is a client for the plex.tv account API (as opposed to a local Plex
-// Media Server). It always verifies TLS against the OS trust store — there
-// is no CA-pinning or skip option for a public endpoint — and never follows
-// redirects, so the admin token cannot be forwarded off plex.tv by a
-// compromised redirect or CDN front.
+// Media Server). It always verifies TLS against the OS trust store and
+// never follows redirects, so the admin token cannot be forwarded off
+// plex.tv by a compromised redirect or CDN front.
 type TV struct {
 	httpClient *http.Client
 	base       string
@@ -119,13 +117,6 @@ func (t *TV) SharedServers(ctx context.Context, machineIdentifier string) ([]Sha
 	if len(body) == 0 {
 		return nil, nil
 	}
-	// The byte cap above bounds the WIRE, not the decode. encoding/xml
-	// materializes each token before this package can inspect it, so a
-	// wire-capped body can still force one cap-sized token allocation, and a
-	// body of tiny elements nested past any real depth grows the decoder's
-	// element stack one heap entry at a time. The preflight rejects a document
-	// already outside the shared_servers contract in one allocation-free scan
-	// over bytes we already hold.
 	if err := xmlx.Preflight(body, sharedServersLimits); err != nil {
 		return nil, fmt.Errorf("plex.tv shared_servers: %w", err)
 	}

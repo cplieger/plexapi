@@ -6,13 +6,10 @@ import (
 )
 
 // ErrNotFound is returned when Plex answers 404 for an item lookup.
-// Detect with errors.Is(err, plexapi.ErrNotFound).
 var ErrNotFound = errors.New("not found")
 
 // StatusError is returned for a non-200, non-404 Plex response, after any
-// transparent retries are exhausted. It carries the status code so callers
-// can classify the failure: a 4xx (bad token, wrong server) will not
-// self-heal, while a 5xx (Plex still starting) may recover.
+// transparent retries are exhausted.
 type StatusError struct {
 	Method string
 	Path   string
@@ -20,21 +17,14 @@ type StatusError struct {
 	Code   int
 }
 
-// Error implements the error interface. The path is included (it is
-// server-relative and never carries the token); the message shape follows
-// the consumers' existing log grammar.
+// Error implements the error interface.
 func (e *StatusError) Error() string {
 	return fmt.Sprintf("plex API %s %s: %s", e.Method, e.Path, e.Status)
 }
 
 // IsConfigError reports whether err is a Plex response indicating a
 // configuration or authorization problem — a 4xx StatusError other than 408
-// (request timeout) and 429 (rate limit, retried transparently and
-// Retry-After-honored). Such a failure will not resolve without operator
-// action (a bad token, a wrong server), unlike a 5xx (Plex up but not
-// ready) or a transport error, both of which may clear on their own.
-// TLS/certificate failures surface as transport errors and remain the
-// caller's concern to classify.
+// (request timeout) and 429 (rate limit, retried transparently).
 func IsConfigError(err error) bool {
 	se, ok := errors.AsType[*StatusError](err)
 	if !ok {
@@ -52,8 +42,7 @@ func IsNotFound(err error) bool {
 }
 
 // ResponseTooLargeError is returned when a response body exceeds the
-// endpoint's read cap. Carries the cap so operators can spot an unfiltered
-// or oversized response class in logs.
+// endpoint's read cap.
 type ResponseTooLargeError struct {
 	Path  string
 	Limit int64

@@ -190,9 +190,8 @@ func TestDoBodyCap(t *testing.T) {
 }
 
 // TestStreamDecodeEdges pins the streaming-decode contract of decodeBody:
-// over-cap always wins as the typed error (valid or truncated JSON alike,
-// including via trailing content), exactly-at-cap decodes, and trailing
-// non-whitespace stays an error like json.Unmarshal's.
+// over-cap always wins as the typed error, exactly-at-cap decodes, and
+// trailing non-whitespace stays an error like json.Unmarshal's.
 func TestStreamDecodeEdges(t *testing.T) {
 	serve := func(t *testing.T, payload string) *Client {
 		t.Helper()
@@ -249,10 +248,9 @@ func TestStreamDecodeEdges(t *testing.T) {
 			t.Errorf("trailing-whitespace Get: %v", err)
 		}
 	})
-	// A body filling the cap exactly is INSIDE the limit, so a decode failure
-	// on it is a decode failure. Reporting it as ResponseTooLargeError would
-	// name a cap the response never exceeded and send an operator to raise a
-	// limit that is not the problem.
+	// A body filling the cap exactly is inside the limit; a decode failure
+	// on it must be a decode failure, not a cap error naming a cap the
+	// response never exceeded.
 	t.Run("exactly at cap with malformed JSON is a decode error", func(t *testing.T) {
 		payload := `{"pad":"` + strings.Repeat("x", 56)
 		if int64(len(payload)) != 64 {
@@ -270,9 +268,7 @@ func TestStreamDecodeEdges(t *testing.T) {
 }
 
 // TestMaxAttemptsBelowOneMakesOneAttempt pins the documented floor of
-// WithMaxAttempts ("minimum 1 — 1 disables retries"): a non-positive count
-// still means exactly one attempt. The count is not handed to the transport
-// raw, where zero means "unset" and would silently restore the default three.
+// WithMaxAttempts: a non-positive count still means exactly one attempt.
 func TestMaxAttemptsBelowOneMakesOneAttempt(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -390,9 +386,8 @@ func TestForToken(t *testing.T) {
 }
 
 // TestWithTimeoutDefaultOnlyWithoutCallerDeadline pins the request-timeout
-// wiring end-to-end (via httpx.ContextWithDefaultTimeout): the WithTimeout
-// default bounds a request only when the caller brought no deadline, and a
-// caller deadline is never undercut by a smaller default.
+// wiring end-to-end: the WithTimeout default bounds a request only when
+// the caller brought no deadline, and a caller deadline is never undercut.
 func TestWithTimeoutDefaultOnlyWithoutCallerDeadline(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
@@ -409,8 +404,7 @@ func TestWithTimeoutDefaultOnlyWithoutCallerDeadline(t *testing.T) {
 	if err := c.Get(t.Context(), "/", nil); err == nil {
 		t.Error("expected the WithTimeout default to bound the request")
 	}
-	// Generous caller deadline: authoritative, never undercut by the 30ms
-	// default, so the slow response completes.
+	// Generous caller deadline: never undercut by the 30ms default.
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	if err := c.Get(ctx, "/", nil); err != nil {

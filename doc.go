@@ -3,65 +3,50 @@
 //
 // # Security model
 //
-// The X-Plex-Token grants full server access, so the client defends it in
-// depth, on every request, by construction:
+// The X-Plex-Token grants full server access, so the client defends it on
+// every request:
 //
 //   - The token travels only in the X-Plex-Token header, never a query
-//     string, so it cannot leak through URL logging.
-//   - Redirects are never followed: Go's default policy forwards custom
-//     headers (including X-Plex-Token) on cross-origin redirects, so a
-//     hostile 302 (MITM, DNS poisoning, compromised upstream) would
-//     otherwise exfiltrate the token.
-//   - Every request path must be server-relative. An absolute or
-//     scheme-relative reference would override the configured host via URL
-//     resolution and send the token to that origin; the client rejects it.
-//   - A self-signed Plex is supported by pinning its CA (WithCACertPEM):
-//     TLS verification stays ON, trusting only that CA. There is no
-//     "insecure skip verify" option.
+//     string.
+//   - Redirects are never followed, since Go forwards custom headers
+//     (including X-Plex-Token) on cross-origin redirects.
+//   - Every request path must be server-relative; an absolute or
+//     scheme-relative reference is rejected.
+//   - A self-signed Plex is supported by pinning its CA (WithCACertPEM),
+//     with TLS verification always on and no "insecure skip verify" option.
 //   - Construction warns (once, via slog) when the base URL is plain http
-//     to a non-local host, because the token would transit unencrypted.
+//     to a non-local host.
 //
 // # Resilience model
 //
 // On the server Client, GET requests ride an httpx retry round-tripper:
-// 429/502/503/504 and transient transport errors (timeouts, resets, DNS)
-// are retried with jittered exponential backoff, honoring Retry-After on
-// 429. Writes (PUT) go through the same client but are never retried (body
-// replay is not enabled), so a mutation is applied at most once per call.
-// A per-attempt response-header timeout on the transport makes a stalled
-// attempt fail as a retryable error instead of hanging the sequence; a
-// per-request default timeout (WithTimeout) applies only when the caller's
-// context carries no deadline, so a caller deadline is always the
-// authoritative budget. Response bodies are size-capped before decode.
+// 429/502/503/504 and transient transport errors are retried with jittered
+// exponential backoff, honoring Retry-After. Writes (PUT) are never
+// retried, so a mutation is applied at most once per call. WithTimeout
+// applies only when the caller's context carries no deadline. Response
+// bodies are size-capped before decode.
 //
-// The plex.tv TV client is deliberately outside this model: a minimal
-// client (30s timeout, refuse-all redirects, no retry transport) for one
-// fixed public endpoint whose sole production caller owns its own
-// semantically-aware retry policy.
+// The plex.tv TV client is outside this model: a minimal client (30s
+// timeout, refuse-all redirects, no retry transport) for one fixed public
+// endpoint whose sole production caller owns its own retry policy.
 //
 // # Wire model
 //
 // Plex wraps every JSON payload in a MediaContainer envelope and returns
 // polymorphic metadata items (an episode, a season, a show, a movie, and a
-// live session all share one shape with different fields populated). The
-// package mirrors that honestly: MC[T] is the envelope, Item is the
-// polymorphic metadata item, and FlexInt absorbs Plex's habit of returning
-// numeric fields as either numbers or quoted strings depending on the
-// endpoint. Typed methods cover the endpoints the consumers use; Get is the
-// documented escape hatch for anything else (for example the Plex Pass
-// statistics endpoints have typed helpers, but a new undocumented endpoint
-// can be reached without waiting for a release).
+// live session all share one shape with different fields populated). MC[T]
+// is the envelope, Item is the polymorphic metadata item, and FlexInt
+// absorbs Plex's habit of returning numeric fields as either numbers or
+// quoted strings depending on the endpoint. Get is the escape hatch for
+// endpoints with no typed method.
 //
-// Consumers that decode into their own domain types do not give up the
-// package's wire-grammar ownership: the exported path builders
-// (SessionsPath, HistoryPath, MetadataPath, ...) carry the endpoint paths,
-// rating-key validation, the literal filter-operator contract, and — via
-// their Path/ListPath return types — each endpoint's read-cap class, and the
-// client's FetchMetadata / FetchMetadataList / FetchDirectory generic methods
-// decode the MediaContainer envelopes into any caller-owned type over the
-// same hardened transport, with the cap class enforced at compile time (a
-// listing endpoint cannot be fetched under the general cap by accident).
-// The typed Item methods are composition over exactly these pieces.
+// The exported path builders (SessionsPath, HistoryPath, MetadataPath,
+// ...) carry the endpoint paths, rating-key validation, the literal
+// filter-operator contract, and — via their Path/ListPath return types —
+// each endpoint's read-cap class; FetchMetadata / FetchMetadataList /
+// FetchDirectory decode into any caller-owned type over the same hardened
+// transport, with the cap class enforced at compile time. The typed Item
+// methods are composition over exactly these pieces.
 //
 // Those three decoders are generic METHODS (Go 1.27), so they cannot appear
 // in an interface: a consumer that mocks this client wraps them in
