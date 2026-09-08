@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/pem"
 	"errors"
+	"log"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -30,13 +31,50 @@ func (r *warnRecorder) Handle(_ context.Context, rec slog.Record) error {
 func (r *warnRecorder) WithAttrs([]slog.Attr) slog.Handler { return r }
 func (r *warnRecorder) WithGroup(string) slog.Handler      { return r }
 
+// captureLog makes a recorder slog's default handler for the test's duration.
+// Callers must be serial (no t.Parallel): the default logger is a process
+// global.
+//
+// slog.SetDefault also points the standard log package at the installed
+// handler, and it skips that redirect when the logger being installed carries
+// slog's own default handler. Reinstalling the previous logger therefore does
+// not undo the redirect, so the writer and flags are saved and restored
+// explicitly. slog goes back first: reinstalling a previous handler that is not
+// slog's default re-runs the redirect and would overwrite a log restore done
+// before it.
 func captureLog(t *testing.T) *warnRecorder {
 	t.Helper()
 	rec := &warnRecorder{}
-	prev := slog.Default()
+	prev, prevWriter, prevFlags := slog.Default(), log.Writer(), log.Flags()
 	slog.SetDefault(slog.New(rec))
-	t.Cleanup(func() { slog.SetDefault(prev) })
+	t.Cleanup(func() {
+		slog.SetDefault(prev)
+		log.SetOutput(prevWriter)
+		log.SetFlags(prevFlags)
+	})
 	return rec
+}
+
+// TestCaptureLogRestoresLogGlobals pins the restore in captureLog: the swap
+// redirects the standard log package's writer and zeroes its flags, and the
+// cleanup must put both back. Without it, one test silences slog for the rest of
+// the package, because slog's own default handler writes through log.Output.
+func TestCaptureLogRestoresLogGlobals(t *testing.T) {
+	wantWriter, wantFlags := log.Writer(), log.Flags()
+
+	t.Run("swap", func(t *testing.T) {
+		captureLog(t)
+		if log.Writer() == wantWriter {
+			t.Fatal("captureLog did not redirect log.Writer(); the restore under test would guard nothing")
+		}
+	})
+
+	if got := log.Writer(); got != wantWriter {
+		t.Errorf("log.Writer() after captureLog cleanup = %T(%p), want the original %T(%p)", got, got, wantWriter, wantWriter)
+	}
+	if got := log.Flags(); got != wantFlags {
+		t.Errorf("log.Flags() after captureLog cleanup = %d, want %d", got, wantFlags)
+	}
 }
 
 func TestWarnIfPlaintextURL(t *testing.T) {
