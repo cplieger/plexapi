@@ -1,7 +1,6 @@
 # plexapi
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/cplieger/plexapi/v2.svg)](https://pkg.go.dev/github.com/cplieger/plexapi/v2)
-[![Go version](https://img.shields.io/github/go-mod/go-version/cplieger/plexapi)](https://github.com/cplieger/plexapi/blob/main/go.mod)
+[![Go Reference](https://pkg.go.dev/badge/github.com/cplieger/plexapi/v2.svg)](https://pkg.go.dev/github.com/cplieger/plexapi/v2) [![Go version](https://img.shields.io/github/go-mod/go-version/cplieger/plexapi)](https://github.com/cplieger/plexapi/blob/main/go.mod)
 
 > Typed, resilient Go client for the Plex Media Server HTTP API
 
