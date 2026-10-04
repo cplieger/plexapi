@@ -2,17 +2,22 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/cplieger/plexapi/v2.svg)](https://pkg.go.dev/github.com/cplieger/plexapi/v2) [![Go version](https://img.shields.io/github/go-mod/go-version/cplieger/plexapi)](https://github.com/cplieger/plexapi/blob/main/go.mod)
 
-> Typed, resilient Go client for the Plex Media Server HTTP API
+plexapi lets your Go tool read a Plex Media Server and set each user's audio and subtitle tracks. Its built-in transport keeps the X-Plex-Token on that server.
 
-Library metadata, sessions, watch history, server identity and statistics,
-GUID resolution, and per-user stream selection. The transport defends the
-`X-Plex-Token` by construction and retries transient failures transparently.
-Plus a small client for the plex.tv account API (shared-server user tokens).
+It saves you writing your own Plex client, which needs the token header, the JSON envelope Plex wraps every answer in, retries and size limits. You supply the token, because it has no sign-in flow. It needs Go 1.27.1 or later, depends on [httpx](https://github.com/cplieger/httpx) and [xmlx](https://github.com/cplieger/xmlx) by the same author, and is licensed under Apache-2.0.
 
-Two runtime dependencies: [httpx](https://github.com/cplieger/httpx) (retry
-round-tripper, CA pinning, bounded reads) and
-[xmlx](https://github.com/cplieger/xmlx) (bounded XML decode, for the one
-plex.tv endpoint that answers XML).
+## Why use it
+
+plexapi is built for Go tools that run beside a Plex Media Server, such as exporters and sync services.
+
+- Typed calls read library items, live sessions, watch history, server statistics and a server's shared users.
+- It sets a user's audio or subtitle track with that user's token, never retried.
+- The token travels only in the `X-Plex-Token` header, and request paths cannot name another host. The built-in transport refuses every redirect.
+- It retries 429, 502, 503 and 504 answers and transient network errors with backoff, honoring `Retry-After`.
+- Response bodies are capped before decoding.
+- A self-signed server works by pinning its CA, and TLS verification stays on.
+
+Consider [go-plex-client](https://github.com/jrudio/go-plex-client) if your tool reacts to live WebSocket events, marks items watched or gets a token through the plex.tv/link PIN flow. Consider [plexgo](https://github.com/LukeHagar/plexgo) if you need the whole Plex Media Server and plex.tv API from an SDK generated from the Plex OpenAPI specification.
 
 ## Install
 
@@ -39,8 +44,8 @@ episodes, err := client.AllLeaves(ctx, "1345") // every episode of a show
 sessions, err := client.Sessions(ctx)
 history, err := client.History(ctx, time.Now().Add(-24*time.Hour).Unix())
 
-// Per-user stream selection: writes are recorded against the REQUESTING
-// token's user, so select with that user's token.
+// Plex records a track change against the user whose token sent it,
+// so change a user's tracks with a client holding that user's token.
 userClient := client.ForToken(plexapi.Token(userToken))
 err = userClient.SetSubtitleStream(ctx, plexapi.StreamSelection{PartID: partID, StreamID: streamID})
 
@@ -49,78 +54,65 @@ tv := plexapi.NewTV(plexapi.Token(adminToken))
 shared, err := tv.SharedServers(ctx, machineID)
 ```
 
-A Plex behind a self-signed certificate pins its CA (verification stays on;
-there is no skip option):
+A rating key is the number Plex gives each library item, and a GUID is an item's external ID such as `imdb://tt0903747`. For a server behind a self-signed certificate, pin its CA with `WithCACertPEM`. Verification stays on, and your code reads the PEM file:
 
 ```go
 pem, _ := os.ReadFile(caPath) // the caller owns file I/O
 client, err := plexapi.New(serverURL, plexapi.Token(token), plexapi.WithCACertPEM(pem))
 ```
 
-## Security model
-
-The token grants full server access; the client defends it on every request:
-
-- Token in the `X-Plex-Token` header only, never a query string, so URL
-  logging can't leak it.
-- Redirects are refused outright. Go's default policy forwards custom
-  headers on cross-origin redirects, so a hostile 302 would exfiltrate the
-  token; Plex's API issues no redirects, so none are followed.
-- Request paths must be server-relative: an absolute or scheme-relative
-  reference (which would re-target URL resolution at another host) is
-  rejected before any request is built.
-- Rating keys are validated numeric before URL interpolation.
-- CA pinning for self-signed servers keeps TLS verification on, trusting
-  only the supplied CA; there is deliberately no insecure-skip option.
-- Construction warns when the base URL is plain `http://` to a non-local
-  host (the token would transit unencrypted).
-- Transport errors are reduced to their cause so error strings never embed
-  full request URLs.
-
-## Resilience model
-
-- GETs ride an httpx retry round-tripper: 429/502/503/504 and transient
-  transport errors retried with jittered exponential backoff, honoring
-  `Retry-After` on 429. `WithMaxAttempts(1)` disables retries.
-- Writes (`PUT` stream selection) are applied at most once, never retried.
-- A per-attempt response-header timeout makes a stalled attempt fail as a
-  retryable error instead of hanging the sequence. A per-request default
-  timeout (`WithTimeout`, default 2m) applies only when the caller's context
-  has no deadline; a caller deadline is always the authoritative budget.
-- Response bodies are size-capped before decode (defaults 10 MB; 40 MB for
-  full section listings; both configurable), with overflow reported as
-  `*ResponseTooLargeError` rather than a truncated decode.
-
 ## API
 
-- **Constructor:** `New(baseURL string, token Token, ...Option)`. `Token` is the package's own credential type, so a token/URL transposition is a compile error rather than a run-time URL-parse failure; `ForToken` and `NewTV` take it too. An untyped literal still converts, which is why `New` keeps its URL validation. Options: `WithCACertPEM`, `WithMaxAttempts` (total, default 3), `WithBaseDelay`, `WithTimeout`, `WithMaxBodyBytes`/`WithMaxListBodyBytes` (read caps), `WithLogger` (routes the client's own diagnostics; default `slog.Default()`), `WithOnRetry` (retry-counter hook), `WithHTTPClient` (caller-owned transport, tests).
-- **Derived clients:** `(*Client).ForToken(token)`: same server and shared connection pool, different token (the per-user write path). `(*Client).BaseTransport()`: an independent clone of the hardened base transport (CA trust, per-attempt header timeout, no retry wrapper) for a caller-owned protocol upgrade such as a WebSocket dial; nil under `WithHTTPClient`. `(*Client).RedirectPolicy()`: the client's CheckRedirect function, for the same dial path.
-- **Wire-grammar layer:** path builders `SessionsPath()`, `SectionsPath()`, `HistoryPath(sinceUnix)`, `SectionItemsPath(key)`, `RecentlyAddedPath(key, type, sinceUnix)`, `MetadataPath(key)`, `ChildrenPath(key)`, `AllLeavesPath(key)` own every endpoint path, the rating-key validation, and the filter-operator contract. Their typed returns carry each endpoint's read-cap class: `Path` (general cap) or `ListPath` (list cap). Generic methods `c.FetchMetadata[T]` / `c.FetchDirectory[T]` (accepting `Path`) and `c.FetchMetadataList[T]` (accepting only `ListPath`) decode the MediaContainer envelopes into caller-owned types over the same hardened transport, so a cap-class mismatch is a compile error. Consumers with their own domain models compose these instead of hand-building paths. Being generic methods (Go 1.27) they cannot appear in an interface, so a consumer that mocks the client wraps them in non-generic methods of its own.
-- **Library:** `Sections`, `SectionItems(key)`, `RecentlyAdded(key, type, sinceUnix)`, `Metadata(key)`, `Children(key)`, `AllLeaves(key)`, `ItemExists(key)` (fail-closed: an undetermined check is an error, never "gone"), `ItemsByGUID(guid)`, `ShowForEpisodeGUID(guid)` (ambiguity yields `""`, refusing to guess), `CountSectionItems(section, type)` (validated section key; `type` 0 = unfiltered).
-- **Sessions & history:** `Sessions()`, `History(sinceUnix)`. History and recently-added filters use Plex's literal single-char `>=` operator; a malformed or encoded operator is silently ignored by Plex, returning the full unfiltered set, so the literal form is pinned by tests.
-- **Server:** `Identity()`, `Accounts()`, `AdminAccount()`, `Providers()` (per-library duration/storage), `StatisticsResources(timespan)` / `StatisticsBandwidth(timespan)` (Plex Pass; 404 → `ErrNotFound` for graceful degradation).
-- **Stream selection:** `SetAudioStream(StreamSelection{PartID, StreamID})`, `SetSubtitleStream(StreamSelection{…})`, `DisableSubtitles(partID)`; user-scoped by requesting token.
-- **plex.tv:** `NewTV(token, ...TVOption)`, `(*TV).SharedServers(machineID)`.
-- **Types:** `MC[T]` (the MediaContainer envelope, for `Get` escape-hatch decoding), `Item` (Plex's polymorphic metadata item: library entries, sessions, and history rows are one wire shape), `FlexInt` (absorbs Plex's number-or-quoted-string fields), `RatingKey` (validated identifier), the `Media`→`Part`→`Stream` graph, `Section`, `ServerIdentity`, `Account`, `SharedServer`, statistics types. Every `id` on the `Media`→`Part`→`Stream` graph is a `FlexInt`, because `/status/sessions` quotes those three fields and the library endpoints send them bare; convert with `int(part.ID)` to build a `StreamSelection`.
-- **Errors:** `ErrNotFound` + `IsNotFound(err)`, `StatusError{Method, Path, Status, Code}`, `ResponseTooLargeError{Path, Limit}`, `IsConfigError(err)` (a 4xx other than 408/429 is a configuration/authorization failure that will not self-heal; everything else is transient).
-- **Escape hatch:** `Get(ctx, path, &result)` for endpoints without a typed method, with the same hardening (path guard, redirect refusal, retries, body caps).
+- `New(baseURL, token, ...Option)` builds a server client. `ForToken` gives the same server and connection pool another user's token.
+- Options are `WithCACertPEM`, `WithMaxAttempts`, `WithBaseDelay`, `WithTimeout`, `WithMaxBodyBytes`, `WithMaxListBodyBytes`, `WithLogger`, `WithOnRetry` and `WithHTTPClient`.
+- Library reads are `Sections`, `SectionItems`, `RecentlyAdded`, `Metadata`, `Children`, `AllLeaves`, `ItemExists`, `ItemsByGUID`, `ShowForEpisodeGUID` and `CountSectionItems`.
+- Activity and server reads are `Sessions`, `History`, `Identity`, `Accounts`, `AdminAccount`, `Providers`, `StatisticsResources` and `StatisticsBandwidth`.
+- Track changes are `SetAudioStream`, `SetSubtitleStream` and `DisableSubtitles`. `NewTV(token).SharedServers(machineID)` lists a server's shared users from plex.tv.
+- To decode into your own types, pass a path builder such as `MetadataPath` to `FetchMetadata`, `FetchMetadataList` or `FetchDirectory`. `Get` calls any endpoint no typed call covers.
+- Errors are `ErrNotFound`, `*StatusError`, `*ResponseTooLargeError`, `IsNotFound` and `IsConfigError`.
 
-## Unsupported by Design
+The full reference is on [pkg.go.dev](https://pkg.go.dev/github.com/cplieger/plexapi/v2). [How plexapi works](docs/how-it-works.md) explains each group's behavior.
 
-Deliberate non-goals, not TODOs:
+## How it protects the token
+
+The token grants full access to the server, so the client defends it on every request:
+
+- The token goes in the `X-Plex-Token` header only, never in a query string, so a logged URL cannot leak it.
+- Redirects are refused. Go forwards custom headers on a cross-origin redirect, so a hostile 302 would hand the token to another host. The Plex API issues no redirects.
+- A request path must be relative to the server. An absolute or scheme-relative path, which would point the request at another host, is rejected before any request is built.
+- Rating keys are checked to be numbers before they go into a URL.
+- Pinning a CA keeps TLS verification on and trusts only that CA. The built-in transport has no option that turns verification off.
+- `New` logs a warning when the base URL is plain `http://` to a host that is not local, because the token would travel unencrypted. It treats `localhost`, a loopback address and a hostname without a dot, such as the Docker container name `plex`, as local.
+- Transport errors are reduced to their cause, so error text never holds a full request URL.
+
+Redirect refusal and TLS verification belong to the built-in transport. A client you pass with `WithHTTPClient` replaces it, so that client must refuse redirects and verify TLS itself.
+
+## How it handles failures
+
+- GET requests are retried on 429, 502, 503 and 504 and on transient network errors, with jittered exponential backoff that honors `Retry-After`. `WithMaxAttempts(1)` turns retries off.
+- A track change is a PUT and is sent at most once, never retried.
+- Each attempt times out after 15 seconds without response headers, which makes a stalled attempt a retryable error. `WithTimeout` sets a per-request limit, 2 minutes by default, that applies only when your context has no deadline. Your deadline always wins.
+- Response bodies are capped before decoding, at 10 MB by default and 40 MB for full section listings. Both are configurable, and a body over the cap returns `*ResponseTooLargeError` instead of a cut-off decode.
+
+## Unsupported by design
+
+These are deliberate non-goals:
 
 | Feature | Rationale |
 | --- | --- |
-| Library management writes (edit metadata, delete items, scan triggers) | The consumers are read-and-select tools; the only mutations modeled are stream selections. |
-| WebSocket notifications | A different transport with app-specific reconnect policy; consumers own it. `BaseTransport()` and `RedirectPolicy()` (see API above) let a dialer share the hardened transport. |
-| Full plex.tv account surface (devices, friends, PINs) | `SharedServers` is the one account call a consumer needs. |
-| Insecure TLS (`InsecureSkipVerify`) | Pin the CA instead; verification never turns off. |
-| Response caching / request coalescing | Callers own their caching layer; the client stays lock-free and stateless per request. |
+| Library management writes (edit metadata, delete items, trigger scans) | plexapi is built for tools that read a library and pick tracks, so track selection is the only write it models. |
+| WebSocket notifications | A different transport whose reconnect policy belongs to each app. `BaseTransport()` and `RedirectPolicy()` let your own dialer reuse the hardened transport. |
+| Full plex.tv account surface (devices, friends, PINs) | `SharedServers` is the one account call the client covers. |
+| Insecure TLS (`InsecureSkipVerify`) | Pin the CA instead. The built-in transport always verifies TLS. |
+| Response caching or request coalescing | Your code owns caching. The client holds no cache and takes no locks of its own. |
+
+## Documentation
+
+- [How plexapi works](docs/how-it-works.md) is for developers who need each call's contract, the defaults, the read caps, the types and the error classes.
 
 ## Contributing
 
-Issues and PRs are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
-conventions and how to run the checks locally.
+Issues and PRs are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the conventions and how to run the checks locally.
 
 ## Disclaimer
 
