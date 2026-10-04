@@ -60,6 +60,7 @@ type options struct {
 	baseDelay   time.Duration
 	maxBody     int64
 	maxListBody int64
+	caSet       bool
 }
 
 // WithHTTPClient supplies a caller-owned *http.Client, replacing the
@@ -74,7 +75,7 @@ func WithHTTPClient(hc *http.Client) Option {
 // Plex behind a self-signed or private CA. The caller owns reading the PEM
 // (the library does no file I/O); an empty pem is an error at construction.
 func WithCACertPEM(pem []byte) Option {
-	return func(o *options) { o.caPEM = pem }
+	return func(o *options) { o.caPEM, o.caSet = pem, true }
 }
 
 // WithMaxAttempts sets the TOTAL number of attempts per GET including the
@@ -239,7 +240,7 @@ func (c *Client) BaseTransport() *http.Transport {
 // the client and the base transport under its retry round-tripper.
 func newHTTPClient(o *options) (*http.Client, *http.Transport, error) {
 	var base *http.Transport
-	if len(o.caPEM) > 0 {
+	if o.caSet {
 		tr, err := httpx.CATransport(o.caPEM)
 		if err != nil {
 			return nil, nil, fmt.Errorf("pinning Plex CA: %w", err)

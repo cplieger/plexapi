@@ -51,8 +51,19 @@ func TestNewValidation(t *testing.T) {
 }
 
 func TestNewRejectsEmptyCAPEM(t *testing.T) {
-	if _, err := New("https://plex:32400", "tok", WithCACertPEM([]byte("not a pem"))); err == nil {
-		t.Error("New with garbage CA PEM succeeded")
+	for _, tc := range []struct {
+		name string
+		pem  []byte
+	}{
+		{name: "garbage", pem: []byte("not a pem")},
+		{name: "empty", pem: []byte{}},
+		{name: "nil", pem: nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := New("https://plex:32400", "tok", WithCACertPEM(tc.pem)); err == nil {
+				t.Errorf("New(WithCACertPEM(%q)) succeeded, want a construction error", tc.pem)
+			}
+		})
 	}
 }
 
