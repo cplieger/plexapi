@@ -1,6 +1,10 @@
 package plexapi
 
-import "fmt"
+import (
+	"fmt"
+	"net/url"
+	"strconv"
+)
 
 // Path builders own the wire grammar for every endpoint the typed surface
 // models: the endpoint paths, Plex's literal single-character filter
@@ -20,8 +24,8 @@ type Path string
 
 // ListPath is a server-relative full-listing endpoint path whose response
 // decodes under the large-listing read cap (WithMaxListBodyBytes).
-// Produced by the listing builders (SectionItemsPath, RecentlyAddedPath);
-// Client.FetchMetadataList accepts only this type.
+// Produced by the listing builders (SectionItemsPath, SectionItemsPagePath,
+// RecentlyAddedPath); Client.FetchMetadataList accepts only this type.
 type ListPath string
 
 // SessionsPath returns the active-sessions endpoint path
@@ -88,4 +92,56 @@ func AllLeavesPath(key RatingKey) (Path, error) {
 		return "", err
 	}
 	return Path("/library/metadata/" + key.String() + "/allLeaves"), nil
+}
+
+// Page selects an offset window of a paged listing: Start is the offset of
+// the first row (X-Plex-Container-Start, >= 0) and Size the row count per
+// request (X-Plex-Container-Size, > 0). A walk starts at Start and reads
+// Size rows per request.
+type Page struct {
+	Start int
+	Size  int
+}
+
+func (p Page) validate() error {
+	if p.Start < 0 || p.Size <= 0 {
+		return fmt.Errorf("invalid page: start %d, size %d", p.Start, p.Size)
+	}
+	return nil
+}
+
+// SectionItemsPagePath returns one page of a section listing; metadataType
+// > 0 adds a ?type= filter (0 is unfiltered). It validates the section key
+// and the page.
+func SectionItemsPagePath(section RatingKey, metadataType int, page Page) (ListPath, error) {
+	path, err := SectionItemsPath(section)
+	if err != nil {
+		return "", err
+	}
+	if err := page.validate(); err != nil {
+		return "", err
+	}
+	q := url.Values{}
+	if metadataType > 0 {
+		q.Set("type", strconv.Itoa(metadataType))
+	}
+	q.Set("X-Plex-Container-Start", strconv.Itoa(page.Start))
+	q.Set("X-Plex-Container-Size", strconv.Itoa(page.Size))
+	return path + ListPath("?"+q.Encode()), nil
+}
+
+// HistoryPagePath returns one page of watch history viewed at or after
+// sinceUnix, oldest first, so plays recorded during a walk land after the
+// read position instead of shifting earlier pages. It validates the page.
+// A general-cap Path for the reason given on HistoryPath.
+func HistoryPagePath(sinceUnix int64, page Page) (Path, error) {
+	if err := page.validate(); err != nil {
+		return "", err
+	}
+	return historyPagePath(sinceUnix, page), nil
+}
+
+func historyPagePath(sinceUnix int64, page Page) Path {
+	return Path(fmt.Sprintf("/status/sessions/history/all?sort=viewedAt:asc&viewedAt>=%d&X-Plex-Container-Start=%d&X-Plex-Container-Size=%d",
+		sinceUnix, page.Start, page.Size))
 }

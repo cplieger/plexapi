@@ -65,9 +65,11 @@ client, err := plexapi.New(serverURL, plexapi.Token(token), plexapi.WithCACertPE
 
 - `New(baseURL, token, ...Option)` builds a server client. `ForToken` gives the same server and connection pool another user's token.
 - Options are `WithCACertPEM`, `WithMaxAttempts`, `WithBaseDelay`, `WithTimeout`, `WithMaxBodyBytes`, `WithMaxListBodyBytes`, `WithLogger`, `WithOnRetry` and `WithHTTPClient`.
-- Library reads are `Sections`, `SectionItems`, `RecentlyAdded`, `Metadata`, `Children`, `AllLeaves`, `ItemExists`, `ItemsByGUID`, `ShowForEpisodeGUID` and `CountSectionItems`.
-- Activity and server reads are `Sessions`, `History`, `Identity`, `Accounts`, `AdminAccount`, `Providers`, `StatisticsResources` and `StatisticsBandwidth`.
+- Library reads are `Sections`, `SectionItems`, `SectionItemsPage`, `WalkSectionItems`, `RecentlyAdded`, `Metadata`, `Children`, `AllLeaves`, `ItemExists`, `ItemsByGUID`, `ShowForEpisodeGUID` and `CountSectionItems`.
+- Activity and server reads are `Sessions`, `History`, `WalkHistory`, `Activities`, `UpdateStatus`, `Identity`, `Accounts`, `AdminAccount`, `Providers`, `StatisticsResources` and `StatisticsBandwidth`.
 - Track changes are `SetAudioStream`, `SetSubtitleStream` and `DisableSubtitles`. `NewTV(token).SharedServers(machineID)` lists a server's shared users from plex.tv.
+- `WalkSectionItems` and `WalkHistory` read a large listing one `Page` at a time.
+- `FlexInt64` and `FlexBool` read fields Plex sends in more than one form.
 - To decode into your own types, pass a path builder such as `MetadataPath` to `FetchMetadata`, `FetchMetadataList` or `FetchDirectory`. `Get` calls any endpoint no typed call covers.
 - Errors are `ErrNotFound`, `*StatusError`, `*ResponseTooLargeError`, `IsNotFound` and `IsConfigError`.
 
