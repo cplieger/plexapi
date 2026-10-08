@@ -2,8 +2,10 @@ package plexapi
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -546,4 +548,218 @@ func TestSharedServers(t *testing.T) {
 			t.Errorf("traversal reached the wire: %q", gotURI)
 		}
 	})
+}
+
+// TestNewFieldsPreservePresence pins that the optional library fields stay
+// nil when Plex omits them or sends null, so a consumer never reads an
+// absent size as a zero-byte file or an absent scan time as 1970.
+func TestNewFieldsPreservePresence(t *testing.T) {
+	srv, _ := fixtureServer(t, map[string]string{
+		"/library/sections/1/all": `{"MediaContainer":{"totalSize":5,"Metadata":[
+			{"ratingKey":"1","Media":[{"videoCodec":"hevc","Part":[{"id":1}]}]},
+			{"ratingKey":"2","Media":[{"Part":[{"id":2,"size":null}]}]},
+			{"ratingKey":"3","Media":[{"Part":[{"id":3,"size":0}]}]},
+			{"ratingKey":"4","viewCount":"2","lastViewedAt":"1700000000","Media":[{"Part":[{"id":4,"size":"5000000000"}]}]},
+			{"ratingKey":"5","viewCount":0,"lastViewedAt":1600000000,"Media":[{"Part":[{"id":5,"size":5000000000}]}]}]}}`,
+		"/library/sections": `{"MediaContainer":{"Directory":[
+			{"key":"1","title":"Movies","type":"movie","scannedAt":1700000123},
+			{"key":"2","title":"TV","type":"show"}]}}`,
+	})
+	c := newTestClient(t, srv)
+	items, _, err := c.SectionItemsPage(t.Context(), "1", 0, Page{Size: 5})
+	if err != nil {
+		t.Fatalf("SectionItemsPage() = %v", err)
+	}
+	if len(items) != 5 {
+		t.Fatalf("SectionItemsPage() returned %d items, want 5", len(items))
+	}
+	size := func(i int) *FlexInt64 { return items[i].Media[0].Part[0].Size }
+	if size(0) != nil || size(1) != nil {
+		t.Errorf("absent and null Part.size = %v, %v, want nil, nil", size(0), size(1))
+	}
+	for i, want := range map[int]int64{2: 0, 3: 5000000000, 4: 5000000000} {
+		if size(i) == nil || int64(*size(i)) != want {
+			t.Errorf("item %d Part.Size = %v, want non-nil %d", i, size(i), want)
+		}
+	}
+	if items[0].Media[0].VideoCodec != "hevc" {
+		t.Errorf("Media.VideoCodec = %q, want hevc", items[0].Media[0].VideoCodec)
+	}
+	if items[0].LastViewedAt != nil || items[0].ViewCount != nil {
+		t.Errorf("absent lastViewedAt/viewCount = %v/%v, want nil/nil", items[0].LastViewedAt, items[0].ViewCount)
+	}
+	if lv, vc := items[3].LastViewedAt, items[3].ViewCount; lv == nil || int64(*lv) != 1700000000 || vc == nil || int(*vc) != 2 {
+		t.Errorf("quoted lastViewedAt/viewCount = %v/%v, want 1700000000/2", lv, vc)
+	}
+	if vc := items[4].ViewCount; vc == nil || int(*vc) != 0 {
+		t.Errorf("viewCount 0 = %v, want non-nil 0", vc)
+	}
+
+	sections, err := c.Sections(t.Context())
+	if err != nil {
+		t.Fatalf("Sections() = %v", err)
+	}
+	if s := sections[0].ScannedAt; s == nil || int64(*s) != 1700000123 {
+		t.Errorf("Section.ScannedAt = %v, want 1700000123", s)
+	}
+	if sections[1].ScannedAt != nil {
+		t.Errorf("absent scannedAt = %v, want nil", *sections[1].ScannedAt)
+	}
+}
+
+// TestSessionsHardwareTranscodeFields pins the hardware-transcode fields in
+// the python-plexapi TranscodeSession shape, and that a malformed flag
+// leaves every other field of the payload decodable.
+func TestSessionsHardwareTranscodeFields(t *testing.T) {
+	srv, _ := fixtureServer(t, map[string]string{
+		"/status/sessions": `{"MediaContainer":{"Metadata":[
+			{"sessionKey":"1","TranscodeSession":{"videoDecision":"transcode","sourceVideoCodec":"hevc","videoCodec":"h264",
+				"transcodeHwRequested":true,"transcodeHwFullPipeline":true,
+				"transcodeHwDecoding":"vaapi","transcodeHwDecodingTitle":"Intel VAAPI",
+				"transcodeHwEncoding":"vaapi","transcodeHwEncodingTitle":"Intel VAAPI"}},
+			{"sessionKey":"2","TranscodeSession":{"videoDecision":"transcode",
+				"transcodeHwRequested":true,"transcodeHwFullPipeline":false,"transcodeHwEncoding":"vaapi"}},
+			{"sessionKey":"3","TranscodeSession":{"videoDecision":"transcode"}},
+			{"sessionKey":"4","User":{"id":"9","title":"bob"},
+			 "TranscodeSession":{"videoDecision":"transcode","transcodeHwRequested":"maybe","transcodeHwDecoding":"nvdec"},
+			 "Media":[{"id":"8","Part":[{"id":"9","size":"700"}]}]}]}}`,
+	})
+	got, err := newTestClient(t, srv).Sessions(t.Context())
+	if err != nil {
+		t.Fatalf("Sessions() = %v, want a decoded payload despite one malformed flag", err)
+	}
+	if len(got) != 4 {
+		t.Fatalf("Sessions() returned %d sessions, want 4", len(got))
+	}
+	flag := func(b *FlexBool) string {
+		if b == nil {
+			return "absent"
+		}
+		if !b.Valid() {
+			return "invalid"
+		}
+		return strconv.FormatBool(b.Bool())
+	}
+	tests := []struct {
+		name               string
+		requested, full    string
+		decoding, encoding string
+	}{
+		{name: "hardware decode and encode", requested: "true", full: "true", decoding: "vaapi", encoding: "vaapi"},
+		{name: "requested, software decode", requested: "true", full: "false", encoding: "vaapi"},
+		{name: "no hardware fields", requested: "absent", full: "absent"},
+		{name: "malformed flag", requested: "invalid", full: "absent", decoding: "nvdec"},
+	}
+	for i, tt := range tests {
+		ts := got[i].TranscodeSession
+		if ts == nil {
+			t.Errorf("%s: TranscodeSession = nil", tt.name)
+			continue
+		}
+		if r, f := flag(ts.TranscodeHwRequested), flag(ts.TranscodeHwFullPipeline); r != tt.requested || f != tt.full {
+			t.Errorf("%s: requested/full = %s/%s, want %s/%s", tt.name, r, f, tt.requested, tt.full)
+		}
+		if ts.TranscodeHwDecoding != tt.decoding || ts.TranscodeHwEncoding != tt.encoding {
+			t.Errorf("%s: decoding/encoding = %q/%q, want %q/%q", tt.name, ts.TranscodeHwDecoding, ts.TranscodeHwEncoding, tt.decoding, tt.encoding)
+		}
+	}
+	bad := got[3]
+	if bad.User == nil || bad.User.Title != "bob" || int(bad.Media[0].ID) != 8 {
+		t.Errorf("fields beside the malformed flag = %+v, want them decoded", bad)
+	}
+	if s := bad.Media[0].Part[0].Size; s == nil || int64(*s) != 700 {
+		t.Errorf("Part.Size beside the malformed flag = %v, want 700", s)
+	}
+}
+
+func TestActivities(t *testing.T) {
+	srv, seen := fixtureServer(t, map[string]string{
+		"/activities": `{"MediaContainer":{"size":6,"Activity":[
+			{"uuid":"a1","type":"library.update.section","title":"Scanning Movies","subtitle":"x","progress":42.5,
+			 "Context":{"librarySectionID":"3"}},
+			{"uuid":"a2","type":"media.generate.credits","title":"Detecting Credits","progress":-1,
+			 "Context":{"librarySectionID":4,"other":{"nested":true}}},
+			{"uuid":"a3","type":"provider.epg.load","title":"Refreshing EPG"},
+			{"uuid":"a4","type":"butler.task","progress":7,"Context":"not-an-object"},
+			{"uuid":"a5","type":"x","Context":{"librarySectionID":null}},
+			{"uuid":"a6","type":"x","Context":{"librarySectionID":"s-6"}}]}}`,
+	})
+	got, err := newTestClient(t, srv).Activities(t.Context())
+	if err != nil {
+		t.Fatalf("Activities() = %v", err)
+	}
+	if len(*seen) != 1 || (*seen)[0] != "GET /activities" {
+		t.Errorf("requests = %v, want one GET /activities", *seen)
+	}
+	if len(got) != 6 {
+		t.Fatalf("Activities() returned %d, want 6", len(got))
+	}
+	prog := func(p *float64) string {
+		if p == nil {
+			return "absent"
+		}
+		return strconv.FormatFloat(*p, 'f', -1, 64)
+	}
+	want := []struct{ uuid, typ, title, section, progress string }{
+		{"a1", "library.update.section", "Scanning Movies", "3", "42.5"},
+		{"a2", "media.generate.credits", "Detecting Credits", "4", "-1"},
+		{"a3", "provider.epg.load", "Refreshing EPG", "", "absent"},
+		{"a4", "butler.task", "", "", "7"},
+		{"a5", "x", "", "", "absent"},
+		{"a6", "x", "", "s-6", "absent"},
+	}
+	for i, w := range want {
+		a := got[i]
+		if a.UUID != w.uuid || a.Type != w.typ || a.Title != w.title || a.LibrarySectionID != w.section || prog(a.Progress) != w.progress {
+			t.Errorf("Activities()[%d] = {%q %q %q section %q progress %s}, want {%q %q %q section %q progress %s}",
+				i, a.UUID, a.Type, a.Title, a.LibrarySectionID, prog(a.Progress), w.uuid, w.typ, w.title, w.section, w.progress)
+		}
+	}
+	if got[0].Subtitle != "x" {
+		t.Errorf("Subtitle = %q, want x", got[0].Subtitle)
+	}
+}
+
+func TestUpdateStatus(t *testing.T) {
+	const secret = "secret-token-value"
+	srv, seen := fixtureServer(t, map[string]string{
+		"/updater/status": `{"MediaContainer":{"canInstall":false,"checkedAt":1715109491,
+			"downloadURL":"https://plex.tv/downloads/latest/5?X-Plex-Token=` + secret + `","status":0,
+			"Release":[{"key":"https://plex.tv/updater/releases/1","version":"1.43.4.1-abc","state":"available",
+				"downloadURL":"https://plex.tv/d?X-Plex-Token=` + secret + `","added":"notes","fixed":"notes"}]}}`,
+	})
+	got, err := newTestClient(t, srv).UpdateStatus(t.Context())
+	if err != nil {
+		t.Fatalf("UpdateStatus() = %v", err)
+	}
+	if len(*seen) != 1 || (*seen)[0] != "GET /updater/status" {
+		t.Errorf("requests = %v, want one GET /updater/status", *seen)
+	}
+	if got.CheckedAt == nil || int64(*got.CheckedAt) != 1715109491 || got.Status == nil || *got.Status != 0 {
+		t.Errorf("UpdateStatus() = %+v, want checkedAt 1715109491 and status 0", got)
+	}
+	if len(got.Releases) != 1 || got.Releases[0].Version != "1.43.4.1-abc" || got.Releases[0].State != "available" {
+		t.Errorf("Releases = %+v", got.Releases)
+	}
+	if dump := fmt.Sprintf("%+v %+v", *got, got.Releases); strings.Contains(dump, secret) {
+		t.Errorf("decoded UpdateStatus carries the token: %s", dump)
+	}
+}
+
+func TestUpdateStatusAbsentFields(t *testing.T) {
+	srv, _ := fixtureServer(t, map[string]string{"/updater/status": `{"MediaContainer":{}}`})
+	got, err := newTestClient(t, srv).UpdateStatus(t.Context())
+	if err != nil {
+		t.Fatalf("UpdateStatus() = %v", err)
+	}
+	if got.CheckedAt != nil || got.Status != nil || len(got.Releases) != 0 {
+		t.Errorf("UpdateStatus() of an empty container = %+v, want nil fields", got)
+	}
+}
+
+func TestUpdateStatusNotFound(t *testing.T) {
+	srv, _ := fixtureServer(t, map[string]string{})
+	if _, err := newTestClient(t, srv).UpdateStatus(t.Context()); !errors.Is(err, ErrNotFound) {
+		t.Errorf("UpdateStatus() on 404 = %v, want ErrNotFound", err)
+	}
 }

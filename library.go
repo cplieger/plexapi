@@ -2,6 +2,7 @@ package plexapi
 
 import (
 	"context"
+	"iter"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -23,6 +24,39 @@ func (c *Client) SectionItems(ctx context.Context, sectionKey RatingKey) ([]Item
 		return nil, err
 	}
 	return c.FetchMetadataList[Item](ctx, path)
+}
+
+// SectionItemsPage returns one page of a section listing (see
+// SectionItemsPagePath) and the section's totalSize, 0 when Plex omits it.
+// It decodes under the list cap.
+func (c *Client) SectionItemsPage(ctx context.Context, section RatingKey, metadataType int, page Page) ([]Item, int64, error) {
+	path, err := SectionItemsPagePath(section, metadataType, page)
+	if err != nil {
+		return nil, 0, err
+	}
+	var resp MC[struct {
+		Metadata  []Item `json:"Metadata"`
+		TotalSize int64  `json:"totalSize"`
+	}]
+	if err := c.do(ctx, http.MethodGet, string(path), c.maxListBody, &resp); err != nil {
+		return nil, 0, err
+	}
+	return resp.MediaContainer.Metadata, resp.MediaContainer.TotalSize, nil
+}
+
+// WalkSectionItems pages through a section listing from page.Start,
+// page.Size items per request with one request in flight; metadataType
+// filters as in SectionItemsPagePath. It ends at an empty page or after
+// totalSize items. A listing that is still growing ends with an error once
+// the walk has read totalSize+page.Size rows, counted from the first page's
+// totalSize; the page that crosses that count is read in full. The first
+// error is yielded once, an incomplete walk and a cancelled ctx included. An item added or removed mid-walk can be skipped or read twice.
+// A non-nil wait is called immediately before every page request, so a
+// caller can pace the walk's requests; its error ends the walk the same way.
+func (c *Client) WalkSectionItems(ctx context.Context, section RatingKey, metadataType int, page Page, wait func(context.Context) error) iter.Seq2[Item, error] {
+	return walkPages(ctx, page, wait, func(ctx context.Context, p Page) ([]Item, int64, error) {
+		return c.SectionItemsPage(ctx, section, metadataType, p)
+	})
 }
 
 // RecentlyAdded returns a section's items of the given metadata type added

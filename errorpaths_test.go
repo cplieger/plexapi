@@ -39,6 +39,9 @@ func TestEndpointsPropagateServerErrors(t *testing.T) {
 		{"CountSectionItems", func() error { _, err := c.CountSectionItems(ctx, "1", 0); return err }},
 		{"Sessions", func() error { _, err := c.Sessions(ctx); return err }},
 		{"History", func() error { _, err := c.History(ctx, 0); return err }},
+		{"SectionItemsPage", func() error { _, _, err := c.SectionItemsPage(ctx, "1", 0, Page{Size: 10}); return err }},
+		{"Activities", func() error { _, err := c.Activities(ctx); return err }},
+		{"UpdateStatus", func() error { _, err := c.UpdateStatus(ctx); return err }},
 	}
 	for _, tc := range checks {
 		t.Run(tc.name, func(t *testing.T) {
@@ -64,6 +67,7 @@ func TestKeyedEndpointsRejectInvalidKeys(t *testing.T) {
 		{"AllLeaves", func() error { _, err := c.AllLeaves(ctx, "abc"); return err }},
 		{"RecentlyAdded", func() error { _, err := c.RecentlyAdded(ctx, "abc", 4, 0); return err }},
 		{"SectionItems", func() error { _, err := c.SectionItems(ctx, "abc"); return err }},
+		{"SectionItemsPage", func() error { _, _, err := c.SectionItemsPage(ctx, "abc", 0, Page{Size: 10}); return err }},
 	}
 	for _, tc := range checks {
 		t.Run(tc.name, func(t *testing.T) {

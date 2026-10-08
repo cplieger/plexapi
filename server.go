@@ -2,6 +2,7 @@ package plexapi
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 )
@@ -86,4 +87,70 @@ func (c *Client) StatisticsBandwidth(ctx context.Context, timespan int) ([]Stati
 		return nil, err
 	}
 	return resp.MediaContainer.StatisticsBandwidth, nil
+}
+
+// Activities returns the server's running background tasks
+// (GET /activities). An activity whose Context is absent or not an object
+// decodes with an empty LibrarySectionID rather than failing the call.
+func (c *Client) Activities(ctx context.Context) ([]Activity, error) {
+	var resp MC[struct {
+		Activity []activityRow `json:"Activity"`
+	}]
+	if err := c.Get(ctx, "/activities", &resp); err != nil {
+		return nil, err
+	}
+	out := make([]Activity, 0, len(resp.MediaContainer.Activity))
+	for i := range resp.MediaContainer.Activity {
+		r := &resp.MediaContainer.Activity[i]
+		out = append(out, Activity{
+			Progress:         r.Progress,
+			UUID:             r.UUID,
+			Type:             r.Type,
+			Title:            r.Title,
+			Subtitle:         r.Subtitle,
+			LibrarySectionID: contextSectionID(r.Context),
+		})
+	}
+	return out, nil
+}
+
+// activityRow is the wire shape of one activity. Context is free-form
+// (the spec types it as an object with any keys), so it is kept raw.
+type activityRow struct {
+	Progress *float64        `json:"progress"`
+	UUID     string          `json:"uuid"`
+	Type     string          `json:"type"`
+	Title    string          `json:"title"`
+	Subtitle string          `json:"subtitle"`
+	Context  json.RawMessage `json:"Context"`
+}
+
+// contextSectionID reads librarySectionID from an activity Context: a
+// string verbatim, a number as its literal, anything else as "".
+func contextSectionID(raw json.RawMessage) string {
+	var fields struct {
+		LibrarySectionID json.RawMessage `json:"librarySectionID"`
+	}
+	if json.Unmarshal(raw, &fields) != nil {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(fields.LibrarySectionID, &s) == nil {
+		return s
+	}
+	var n json.Number
+	if json.Unmarshal(fields.LibrarySectionID, &n) == nil {
+		return n.String()
+	}
+	return ""
+}
+
+// UpdateStatus returns the server's update check (GET /updater/status).
+// ErrNotFound when the server does not expose the updater.
+func (c *Client) UpdateStatus(ctx context.Context) (*UpdateStatus, error) {
+	var resp MC[UpdateStatus]
+	if err := c.Get(ctx, "/updater/status", &resp); err != nil {
+		return nil, err
+	}
+	return &resp.MediaContainer, nil
 }

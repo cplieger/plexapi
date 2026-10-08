@@ -54,6 +54,81 @@ func (f *FlexInt) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// FlexInt64 is FlexInt for 64-bit values (file sizes, unix timestamps).
+// Null, absent, and empty-string values decode to 0; a pointer field of
+// this type stays nil when the field is absent or null.
+type FlexInt64 int64
+
+var _ json.Unmarshaler = (*FlexInt64)(nil)
+
+// UnmarshalJSON accepts a JSON number, a quoted numeric string, null, or an
+// empty string. Anything else is a parse error.
+func (f *FlexInt64) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		*f = 0
+		return nil
+	}
+	if data[0] == '"' {
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return fmt.Errorf("flexint64: decode string: %w", err)
+		}
+		if s == "" {
+			*f = 0
+			return nil
+		}
+		n, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			return fmt.Errorf("flexint64: parse %q: %w", s, err)
+		}
+		*f = FlexInt64(n)
+		return nil
+	}
+	var num json.Number
+	if err := json.Unmarshal(data, &num); err != nil {
+		return fmt.Errorf("flexint64: decode number: %w", err)
+	}
+	n, err := strconv.ParseInt(num.String(), 10, 64)
+	if err != nil {
+		return fmt.Errorf("flexint64: parse %s: %w", num.String(), err)
+	}
+	*f = FlexInt64(n)
+	return nil
+}
+
+// FlexBool decodes a Plex JSON flag sent as true/false, 0/1, "0"/"1", or
+// "true"/"false". Null decodes to false.
+//
+// Decoding never fails: any other value decodes to false and Valid reports
+// false. A wrong wire type on one session field must not make the whole
+// MediaContainer undecodable. The zero value is a valid false. FlexBool is
+// decode-only: it has no MarshalJSON, so encoding one writes {}.
+type FlexBool struct {
+	value   bool
+	invalid bool
+}
+
+var _ json.Unmarshaler = (*FlexBool)(nil)
+
+// Bool returns the decoded value; false when Valid is false.
+func (b *FlexBool) Bool() bool { return b.value }
+
+// Valid reports whether the wire value was one of the accepted forms.
+func (b *FlexBool) Valid() bool { return !b.invalid }
+
+// UnmarshalJSON decodes the accepted forms and never returns an error.
+func (b *FlexBool) UnmarshalJSON(data []byte) error {
+	switch string(data) {
+	case "true", "1", `"1"`, `"true"`:
+		*b = FlexBool{value: true}
+	case "false", "0", `"0"`, `"false"`, "null":
+		*b = FlexBool{}
+	default:
+		*b = FlexBool{invalid: true}
+	}
+	return nil
+}
+
 // RatingKey is Plex's opaque numeric-string identifier for a library item
 // (movie, show, season, episode) or section. The type exists so keys are
 // validated once at the API boundary instead of being interpolated into URL
@@ -78,7 +153,12 @@ func (r RatingKey) Validate() error {
 // different fields populated. Field presence follows the endpoint: a
 // library listing populates identity + GUIDs, a session adds User / Player
 // / TranscodeSession, a metadata fetch adds the Media→Part→Stream graph.
+//
+// LastViewedAt and ViewCount are the token's account's watch state, nil
+// when absent; an AddedAt <= 0 is unknown.
 type Item struct {
+	LastViewedAt         *FlexInt64        `json:"lastViewedAt,omitempty"`
+	ViewCount            *FlexInt          `json:"viewCount,omitempty"`
 	User                 *SessionUser      `json:"User,omitempty"`
 	TranscodeSession     *TranscodeSession `json:"TranscodeSession,omitempty"`
 	Session              *SessionBandwidth `json:"Session,omitempty"`
@@ -134,6 +214,7 @@ type Label struct {
 // other field on the MediaContainer down with it.
 type Media struct {
 	VideoResolution string  `json:"videoResolution"`
+	VideoCodec      string  `json:"videoCodec"`
 	Part            []Part  `json:"Part"`
 	ID              FlexInt `json:"id"`
 	Bitrate         int     `json:"bitrate"`
@@ -141,11 +222,13 @@ type Media struct {
 
 // Part is one file of a Media, wrapping its streams. Decision is populated
 // on session responses (the transcoder's per-part verdict). ID is FlexInt
-// for the reason given on Media.
+// for the reason given on Media. Size is the file size in bytes: nil when
+// absent or null, non-nil 0 when Plex sends 0.
 type Part struct {
-	Decision string   `json:"decision"`
-	Stream   []Stream `json:"Stream"`
-	ID       FlexInt  `json:"id"`
+	Size     *FlexInt64 `json:"size,omitempty"`
+	Decision string     `json:"decision"`
+	Stream   []Stream   `json:"Stream"`
+	ID       FlexInt    `json:"id"`
 }
 
 // StreamType identifies the kind of stream. The integer values are the
@@ -207,21 +290,32 @@ type SessionBandwidth struct {
 
 // TranscodeSession is the TranscodeSession element on a session item; its
 // decision fields distinguish direct play / direct stream / transcode.
+//
+// The TranscodeHw* fields report hardware transcoding: the two flags are nil
+// when Plex omits them, and TranscodeHwDecoding / TranscodeHwEncoding name
+// the hardware API Plex reports for that stage (for example "vaapi"),
+// empty when it reports none.
 type TranscodeSession struct {
-	VideoDecision    string `json:"videoDecision"`
-	AudioDecision    string `json:"audioDecision"`
-	SubtitleDecision string `json:"subtitleDecision"`
-	SourceVideoCodec string `json:"sourceVideoCodec"`
-	SourceAudioCodec string `json:"sourceAudioCodec"`
-	VideoCodec       string `json:"videoCodec"`
-	AudioCodec       string `json:"audioCodec"`
+	TranscodeHwRequested    *FlexBool `json:"transcodeHwRequested,omitempty"`
+	TranscodeHwFullPipeline *FlexBool `json:"transcodeHwFullPipeline,omitempty"`
+	TranscodeHwDecoding     string    `json:"transcodeHwDecoding"`
+	TranscodeHwEncoding     string    `json:"transcodeHwEncoding"`
+	VideoDecision           string    `json:"videoDecision"`
+	AudioDecision           string    `json:"audioDecision"`
+	SubtitleDecision        string    `json:"subtitleDecision"`
+	SourceVideoCodec        string    `json:"sourceVideoCodec"`
+	SourceAudioCodec        string    `json:"sourceAudioCodec"`
+	VideoCodec              string    `json:"videoCodec"`
+	AudioCodec              string    `json:"audioCodec"`
 }
 
-// Section is a library section from GET /library/sections.
+// Section is a library section from GET /library/sections. ScannedAt is
+// the last scan as unix seconds, nil when Plex omits it.
 type Section struct {
-	Key   string `json:"key"`
-	Title string `json:"title"`
-	Type  string `json:"type"`
+	ScannedAt *FlexInt64 `json:"scannedAt,omitempty"`
+	Key       string     `json:"key"`
+	Title     string     `json:"title"`
+	Type      string     `json:"type"`
 }
 
 // Section type strings and metadata type IDs used in section filters.
@@ -296,4 +390,50 @@ type StatisticsResource struct {
 type StatisticsBandwidth struct {
 	Bytes int64 `json:"bytes"`
 	At    int   `json:"at"`
+}
+
+// HistoryEntry is one watch-history row from WalkHistory. Every decoded row
+// is returned as Plex sent it: RatingKey is empty when Plex omits it, which
+// it does for a play of an item since deleted, and ViewedAt is 0 when
+// absent, so the caller decides which rows it can use. AccountID is the
+// server-local account (see Accounts), 0 when absent.
+//
+// HistoryKey is Plex's per-row key, kept verbatim when it is at most 512
+// bytes and empty otherwise. It is opaque: never parse it.
+type HistoryEntry struct {
+	RatingKey  string
+	HistoryKey string
+	ViewedAt   int64
+	AccountID  int64
+}
+
+// Activity is one server background task from GET /activities (a library
+// scan, media analysis, credits detection). Progress is a percentage, -1
+// when Plex reports it as indeterminate and nil when absent.
+// LibrarySectionID is the section the task works on, read from the
+// activity's Context, empty for a server-wide task.
+type Activity struct {
+	Progress         *float64
+	UUID             string
+	Type             string
+	Title            string
+	Subtitle         string
+	LibrarySectionID string
+}
+
+// UpdateStatus is the server's update check from GET /updater/status.
+// CheckedAt is the last check as unix seconds and Status the updater's
+// error code (0 means no error); both are nil when absent. Download URLs
+// are not decoded, because Plex embeds the server token in them.
+type UpdateStatus struct {
+	CheckedAt *FlexInt64      `json:"checkedAt"`
+	Status    *int            `json:"status"`
+	Releases  []UpdateRelease `json:"Release"`
+}
+
+// UpdateRelease is one release in UpdateStatus. State is Plex's release
+// state ("available", "downloaded", "skipped", ...), passed through as sent.
+type UpdateRelease struct {
+	Version string `json:"version"`
+	State   string `json:"state"`
 }

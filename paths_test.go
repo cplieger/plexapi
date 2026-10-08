@@ -71,6 +71,31 @@ func TestPathBuilders(t *testing.T) {
 			name: "all leaves invalid key", build: func() (string, error) { p, err := AllLeavesPath(""); return string(p), err },
 			wantErr: true,
 		},
+		{
+			name: "section items page typed", build: func() (string, error) {
+				p, err := SectionItemsPagePath("2", 4, Page{Start: 500, Size: 250})
+				return string(p), err
+			},
+			want: "/library/sections/2/all?X-Plex-Container-Size=250&X-Plex-Container-Start=500&type=4",
+		},
+		{
+			name: "section items page unfiltered", build: func() (string, error) { p, err := SectionItemsPagePath("2", 0, Page{Size: 500}); return string(p), err },
+			want: "/library/sections/2/all?X-Plex-Container-Size=500&X-Plex-Container-Start=0",
+		},
+		{
+			name: "section items page invalid key", build: func() (string, error) {
+				p, err := SectionItemsPagePath("2/../1", 4, Page{Size: 500})
+				return string(p), err
+			},
+			wantErr: true,
+		},
+		{
+			name: "history page", build: func() (string, error) {
+				p, err := HistoryPagePath(1700000000, Page{Start: 250, Size: 250})
+				return string(p), err
+			},
+			want: "/status/sessions/history/all?sort=viewedAt:asc&viewedAt>=1700000000&X-Plex-Container-Start=250&X-Plex-Container-Size=250",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -136,6 +161,38 @@ func TestBuilderCapClasses(t *testing.T) {
 		t.Fatal(err)
 	}
 	requirePath(leaves)
+
+	page, err := SectionItemsPagePath("1", 4, Page{Size: 500})
+	if err != nil {
+		t.Fatal(err)
+	}
+	requireListPath(page)
+
+	history, err := HistoryPagePath(0, Page{Size: 500})
+	if err != nil {
+		t.Fatal(err)
+	}
+	requirePath(history) // the same tripwire as HistoryPath
+}
+
+func TestPagePathsRejectBadPage(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		page Page
+	}{
+		{name: "negative start", page: Page{Start: -1, Size: 500}},
+		{name: "zero size", page: Page{}},
+		{name: "negative size", page: Page{Size: -5}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if p, err := SectionItemsPagePath("1", 4, tc.page); err == nil {
+				t.Errorf("SectionItemsPagePath(%+v) = %q, want an error", tc.page, p)
+			}
+			if p, err := HistoryPagePath(0, tc.page); err == nil {
+				t.Errorf("HistoryPagePath(%+v) = %q, want an error", tc.page, p)
+			}
+		})
+	}
 }
 
 // consumerItem is a consumer-owned decode type (deliberately NOT Item).
