@@ -198,13 +198,11 @@ func TestPagePathsRejectBadPage(t *testing.T) {
 // consumerItem is a consumer-owned decode type (deliberately NOT Item).
 type consumerItem struct {
 	RatingKey string  `json:"ratingKey"`
-	Title     string  `json:"title"`
 	Index     FlexInt `json:"index"`
 }
 
 // consumerSection is a consumer-owned Directory decode type.
 type consumerSection struct {
-	Key  string `json:"key"`
 	Type string `json:"type"`
 }
 
