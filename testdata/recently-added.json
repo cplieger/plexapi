@@ -1,0 +1,394 @@
+{
+ "MediaContainer": {
+  "size": 4,
+  "allowSync": true,
+  "art": "/:/resources/movie-fanart.jpg",
+  "identifier": "com.plexapp.plugins.library",
+  "librarySectionID": 1,
+  "librarySectionTitle": "Movies",
+  "librarySectionUUID": "00000000-0000-4000-8000-000000000001",
+  "mediaTagPrefix": "/system/bundle/media/flags/",
+  "mediaTagVersion": 1786914632,
+  "thumb": "/:/resources/movie.png",
+  "title1": "Movies",
+  "title2": "All Movies",
+  "viewGroup": "movie",
+  "viewMode": 65592,
+  "Metadata": [
+   {
+    "ratingKey": "724199",
+    "key": "/library/metadata/724199",
+    "guid": "plex://movie/6427bf14fb55d3620f989a90",
+    "studio": "Forged Films",
+    "type": "movie",
+    "title": "Hope",
+    "originalTitle": "호프",
+    "contentRating": "R",
+    "summary": "In the remote South Korean village of Hope Harbor, police chief Bum-seok and officer Sung-ae are called to investigate a mysterious creature wreaking havoc on the community. But all is not as it seems, and perceptions can be misleading. What begins as ignorance plants the seed of disaster, escalating through human conflict into a tragedy of cosmic proportions.",
+    "year": 2026,
+    "thumb": "/library/metadata/724199/thumb/1792015620",
+    "duration": 9421215,
+    "originallyAvailableAt": "2026-07-15",
+    "addedAt": 1792015620,
+    "loudnessAnalysisVersion": "0.02",
+    "Media": [
+     {
+      "id": 914374,
+      "duration": 9421215,
+      "bitrate": 8608,
+      "width": 1920,
+      "height": 800,
+      "aspectRatio": 2.35,
+      "audioChannels": 6,
+      "audioCodec": "eac3",
+      "videoCodec": "h264",
+      "videoResolution": "1080",
+      "container": "mkv",
+      "videoFrameRate": "24p",
+      "videoProfile": "high",
+      "hasVoiceActivity": true,
+      "Part": [
+       {
+        "id": 1047308,
+        "key": "/library/parts/1047308/1792015567/file.mkv",
+        "duration": 9421215,
+        "file": "/media/movies/Hope (2026) {imdb-tt27369017}/Hope (2026) {imdb-tt27369017} - [WEBDL-1080p][EAC3 5.1][h264]-playWEB.mkv",
+        "size": 10139834162,
+        "container": "mkv",
+        "indexes": "sd",
+        "videoProfile": "high"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "Hope",
+      "type": "coverPoster",
+      "url": "/library/metadata/724199/thumb/1792015620"
+     }
+    ],
+    "Collection": [
+     {
+      "tag": "Home Popular Movies"
+     }
+    ]
+   },
+   {
+    "ratingKey": "724178",
+    "key": "/library/metadata/724178",
+    "guid": "plex://movie/5d776ca723d5a3001f51dc84",
+    "slug": "the-battleship-island",
+    "editionTitle": "Extended Directors Cut",
+    "studio": "Filmmaker R&K",
+    "type": "movie",
+    "title": "The Battleship Island",
+    "titleSort": "Battleship Island",
+    "originalTitle": "군함도",
+    "contentRating": "PG-13",
+    "summary": "During the Japanese colonial era, roughly 400 Korean people, who were forced onto Battleship Island (\"Hashima Island\") to mine for coal, attempt to a dramatic escape.",
+    "rating": 6.7,
+    "audienceRating": 8.0,
+    "year": 2017,
+    "tagline": "1945 Hashima. We called it hell on earth.",
+    "thumb": "/library/metadata/724178/thumb/1791667712",
+    "art": "/library/metadata/724178/art/1791667712",
+    "duration": 9063967,
+    "originallyAvailableAt": "2017-07-26",
+    "addedAt": 1791667712,
+    "updatedAt": 1791667712,
+    "audienceRatingImage": "rottentomatoes://image.rating.upright",
+    "loudnessAnalysisVersion": "0.02",
+    "ratingImage": "rottentomatoes://image.rating.ripe",
+    "Media": [
+     {
+      "id": 914253,
+      "duration": 9063967,
+      "bitrate": 6431,
+      "width": 1920,
+      "height": 1080,
+      "aspectRatio": 1.78,
+      "audioChannels": 6,
+      "audioCodec": "eac3",
+      "videoCodec": "h264",
+      "videoResolution": "1080",
+      "container": "mkv",
+      "videoFrameRate": "24p",
+      "videoProfile": "main",
+      "hasVoiceActivity": true,
+      "Part": [
+       {
+        "id": 1047187,
+        "key": "/library/parts/1047187/1791665926/file.mkv",
+        "duration": 9063967,
+        "file": "/media/movies/The Battleship Island (2017) {imdb-tt5969696}/The Battleship Island (2017) {imdb-tt5969696} - {edition-Extended Directors Cut} [WEBDL-1080p][EAC3 5.1][x264]-KamiKaze.mkv",
+        "size": 7288583942,
+        "container": "mkv",
+        "indexes": "sd",
+        "videoProfile": "main"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "The Battleship Island",
+      "type": "coverPoster",
+      "url": "/library/metadata/724178/thumb/1791667712"
+     },
+     {
+      "alt": "The Battleship Island",
+      "type": "background",
+      "url": "/library/metadata/724178/art/1791667712"
+     },
+     {
+      "alt": "The Battleship Island",
+      "type": "clearLogo",
+      "url": "/library/metadata/724178/clearLogo/1791667712"
+     },
+     {
+      "alt": "The Battleship Island",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/724178/squareArt/1791667712"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "2b2f2d",
+     "topRight": "91423b",
+     "bottomRight": "19171b",
+     "bottomLeft": "3c3735"
+    },
+    "Genre": [
+     {
+      "tag": "Drama"
+     },
+     {
+      "tag": "Action"
+     }
+    ],
+    "Country": [
+     {
+      "tag": "Republic of Korea"
+     }
+    ],
+    "Director": [
+     {
+      "tag": "Ryoo Seung-wan"
+     }
+    ],
+    "Writer": [
+     {
+      "tag": "Ryoo Seung-wan"
+     },
+     {
+      "tag": "Shin Kyung-il"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Hwang Jung-min"
+     },
+     {
+      "tag": "So Ji-sub"
+     },
+     {
+      "tag": "Song Joong-ki"
+     }
+    ]
+   },
+   {
+    "ratingKey": "724176",
+    "key": "/library/metadata/724176",
+    "guid": "plex://movie/5d7770a3dd931c001e390ecb",
+    "slug": "k-g-f-chapter-1",
+    "studio": "Hombale Films",
+    "type": "movie",
+    "title": "K.G.F: Chapter 1",
+    "originalTitle": "ಕೆಜಿಎಫ್ ಅಧ್ಯಾಯ ೧",
+    "contentRating": "PG-13",
+    "contentRatingAge": 16,
+    "summary": "In the 1970s, a gangster named Rocky goes undercover as a slave to assassinate the owner of a notorious gold mine known as the Kolar Gold Fields.",
+    "rating": 6.7,
+    "audienceRating": 8.6,
+    "year": 2018,
+    "tagline": "From The Streets Of Mumbai...To The Bloody Gold Mines Of Kolar",
+    "thumb": "/library/metadata/724176/thumb/1791767817",
+    "art": "/library/metadata/724176/art/1791767817",
+    "duration": 9272448,
+    "originallyAvailableAt": "2018-12-20",
+    "addedAt": 1791665701,
+    "updatedAt": 1791767817,
+    "audienceRatingImage": "rottentomatoes://image.rating.upright",
+    "loudnessAnalysisVersion": "0.02",
+    "primaryExtraKey": "/library/metadata/724177",
+    "ratingImage": "rottentomatoes://image.rating.ripe",
+    "Media": [
+     {
+      "id": 914249,
+      "duration": 9272448,
+      "bitrate": 9647,
+      "width": 1920,
+      "height": 816,
+      "aspectRatio": 2.35,
+      "audioChannels": 6,
+      "audioCodec": "eac3",
+      "videoCodec": "h264",
+      "videoResolution": "1080",
+      "container": "mkv",
+      "videoFrameRate": "PAL",
+      "videoProfile": "high",
+      "hasVoiceActivity": true,
+      "Part": [
+       {
+        "id": 1047183,
+        "key": "/library/parts/1047183/1791665669/file.mkv",
+        "duration": 9272448,
+        "file": "/media/movies/K.G.F Chapter 1 (2018) {imdb-tt7838252}/K.G.F Chapter 1 (2018) {imdb-tt7838252} - [WEBDL-1080p][EAC3 5.1][h264]-DTR.mkv",
+        "size": 11181399498,
+        "container": "mkv",
+        "hasThumbnail": "1",
+        "indexes": "sd",
+        "videoProfile": "high"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "K.G.F: Chapter 1",
+      "type": "coverPoster",
+      "url": "/library/metadata/724176/thumb/1791767817"
+     },
+     {
+      "alt": "K.G.F: Chapter 1",
+      "type": "background",
+      "url": "/library/metadata/724176/art/1791767817"
+     },
+     {
+      "alt": "K.G.F: Chapter 1",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/724176/squareArt/1791767817"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "3b1603",
+     "topRight": "7e4a25",
+     "bottomRight": "592910",
+     "bottomLeft": "6a3115"
+    },
+    "Genre": [
+     {
+      "tag": "Action"
+     },
+     {
+      "tag": "Adventure"
+     }
+    ],
+    "Country": [
+     {
+      "tag": "India"
+     }
+    ],
+    "Director": [
+     {
+      "tag": "Prashanth Neel"
+     }
+    ],
+    "Writer": [
+     {
+      "tag": "Prashanth Neel"
+     },
+     {
+      "tag": "M. Chandramouli"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Yash"
+     },
+     {
+      "tag": "Srinidhi Shetty"
+     },
+     {
+      "tag": "Ramachandra Raju"
+     }
+    ]
+   },
+   {
+    "ratingKey": "724175",
+    "key": "/library/metadata/724175",
+    "guid": "plex://movie/5d9f3c2868e4c8001fb66557",
+    "slug": "baahubali-the-beginning",
+    "studio": "Arka Media Works",
+    "type": "movie",
+    "title": "Bāhubali: The Beginning",
+    "titleSort": "Bahubali: The Beginning",
+    "originalTitle": "బాహుబలి:ద బిగినింగ్",
+    "contentRating": "Not Rated",
+    "summary": "When Sanga and her husband, part of a tribe living around the province of Mahismathi, save a drowning infant, little do they know the background of the infant or what the future holds for him. The kid grows up to as Shivudu, a free-spirit wanting to explore the mountains and in the process learns of his roots and then realizes the whole purpose of his life and ends up confronting the mighty Bhallala Deva!",
+    "rating": 9.3,
+    "audienceRating": 8.5,
+    "year": 2015,
+    "tagline": "India's Biggest Motion Picture",
+    "thumb": "/library/metadata/724175/thumb/1791767814",
+    "art": "/library/metadata/724175/art/1791767814",
+    "duration": 9551808,
+    "originallyAvailableAt": "2015-07-09",
+    "addedAt": 1791664501,
+    "updatedAt": 1791767814,
+    "audienceRatingImage": "rottentomatoes://image.rating.upright",
+    "chapterSource": "media",
+    "loudnessAnalysisVersion": "0.02",
+    "ratingImage": "rottentomatoes://image.rating.ripe",
+    "Media": [
+     {
+      "id": 914248,
+      "duration": 9551808,
+      "bitrate": 17658,
+      "width": 1920,
+      "height": 780,
+      "aspectRatio": 2.35,
+      "audioChannels": 6,
+      "audioCodec": "eac3",
+      "videoCodec": "h264",
+      "videoResolution": "1080",
+      "container": "mkv",
+      "videoFrameRate": "24p",
+      "videoProfile": "high",
+      "hasVoiceActivity": true,
+      "Part": [
+       {
+        "id": 1047182,
+        "key": "/library/parts/1047182/1791664451/file.mkv",
+        "duration": 9551808,
+        "file": "/media/movies/Bahubali The Beginning (2015) {imdb-tt2631186}/Bahubali The Beginning (2015) {imdb-tt2631186} - [Bluray-1080p][EAC3 5.1][x264]-ZoroSenpai.mkv",
+        "size": 21082987651,
+        "container": "mkv",
+        "indexes": "sd",
+        "videoProfile": "high"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "Bāhubali: The Beginning",
+      "type": "coverPoster",
+      "url": "/library/metadata/724175/thumb/1791767814"
+     },
+     {
+      "alt": "Bāhubali: The Beginning",
+      "type": "background",
+      "url": "/library/metadata/724175/art/1791767814"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "442411",
+     "topRight": "87452f",
+     "bottomRight": "914426",
+     "bottomLeft": "6e3823"
+    }
+   }
+  ]
+ }
+}

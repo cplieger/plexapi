@@ -89,6 +89,17 @@ func (c *Client) Metadata(ctx context.Context, key RatingKey) (*Item, error) {
 	return &items[0], nil
 }
 
+// RefreshMetadata asks Plex to refresh one item's metadata
+// (PUT /library/metadata/{key}/refresh). The key is checked as MetadataPath
+// checks it before any request is built, and the PUT is sent at most once.
+func (c *Client) RefreshMetadata(ctx context.Context, key RatingKey) error {
+	path, err := MetadataPath(key)
+	if err != nil {
+		return err
+	}
+	return c.put(ctx, string(path)+"/refresh")
+}
+
 // Children returns an item's direct children (a show's seasons, a season's
 // episodes).
 func (c *Client) Children(ctx context.Context, key RatingKey) ([]Item, error) {

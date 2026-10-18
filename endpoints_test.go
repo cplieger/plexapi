@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/cplieger/xmlx"
@@ -137,6 +139,105 @@ func TestMetadataEmptyIsNotFound(t *testing.T) {
 	_, err := newTestClient(t, srv).Metadata(t.Context(), "42")
 	if !IsNotFound(err) {
 		t.Errorf("err = %v, want ErrNotFound for empty metadata", err)
+	}
+}
+
+func TestRefreshMetadataRequest(t *testing.T) {
+	var method, uri, token string
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		method, uri, token = r.Method, r.RequestURI, r.Header.Get("X-Plex-Token")
+	}))
+	defer srv.Close()
+	if err := newTestClient(t, srv).RefreshMetadata(t.Context(), "42"); err != nil {
+		t.Fatal(err)
+	}
+	if got := method + " " + uri; got != "PUT /library/metadata/42/refresh" {
+		t.Errorf("request = %q, want PUT /library/metadata/42/refresh", got)
+	}
+	if token != "test-token" {
+		t.Errorf("X-Plex-Token = %q, want test-token", token)
+	}
+}
+
+func TestRefreshMetadataRejectsInvalidRatingKey(t *testing.T) {
+	var uris []string
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		uris = append(uris, r.RequestURI)
+	}))
+	defer srv.Close()
+	c := newTestClient(t, srv)
+	for _, tc := range []struct {
+		name string
+		key  RatingKey
+	}{
+		{"empty", ""},
+		{"letters", "abc"},
+		{"path segment", "show/42"},
+		{"dot segment", "42/../1"},
+		{"space", "4 2"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, want := MetadataPath(tc.key)
+			err := c.RefreshMetadata(t.Context(), tc.key)
+			if want == nil || err == nil || err.Error() != want.Error() {
+				t.Errorf("RefreshMetadata(%q) = %v, want MetadataPath's %v", tc.key, err, want)
+			}
+		})
+	}
+	if len(uris) != 0 {
+		t.Fatalf("server received %q for invalid keys, want no request", uris)
+	}
+	// strconv.Atoi accepts a sign, so MetadataPath does too; RefreshMetadata
+	// answers exactly as it does.
+	for _, key := range []RatingKey{"-1", "+1"} {
+		t.Run("sign "+string(key[0]), func(t *testing.T) {
+			uris = nil
+			path, err := MetadataPath(key)
+			if err != nil {
+				t.Fatalf("MetadataPath(%q) = %v", key, err)
+			}
+			if err := c.RefreshMetadata(t.Context(), key); err != nil {
+				t.Fatalf("RefreshMetadata(%q) = %v", key, err)
+			}
+			if want := []string{string(path) + "/refresh"}; !slices.Equal(uris, want) {
+				t.Errorf("requests = %q, want %q", uris, want)
+			}
+		})
+	}
+}
+
+func TestRefreshMetadataNeverRetried(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+	err := newTestClient(t, srv).RefreshMetadata(t.Context(), "42")
+	if se, ok := errors.AsType[*StatusError](err); !ok || se.Code != http.StatusServiceUnavailable {
+		t.Errorf("RefreshMetadata on 503 = %v, want StatusError 503", err)
+	}
+	if n := hits.Load(); n != 1 {
+		t.Errorf("requests = %d, want 1", n)
+	}
+}
+
+func TestRefreshMetadataRefusesRedirect(t *testing.T) {
+	var followed atomic.Bool
+	evil := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		followed.Store(true)
+	}))
+	defer evil.Close()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, evil.URL+r.URL.Path, http.StatusTemporaryRedirect)
+	}))
+	defer srv.Close()
+	err := newTestClient(t, srv).RefreshMetadata(t.Context(), "42")
+	if se, ok := errors.AsType[*StatusError](err); !ok || se.Code != http.StatusTemporaryRedirect {
+		t.Errorf("RefreshMetadata through 307 = %v, want StatusError 307", err)
+	}
+	if followed.Load() {
+		t.Error("client followed the redirect")
 	}
 }
 
