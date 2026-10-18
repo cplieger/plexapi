@@ -44,6 +44,9 @@ episodes, err := client.AllLeaves(ctx, "1345") // every episode of a show
 sessions, err := client.Sessions(ctx)
 history, err := client.History(ctx, time.Now().Add(-24*time.Hour).Unix())
 
+// Ask Plex to refresh one item's metadata; the PUT is sent once.
+err = client.RefreshMetadata(ctx, "49915")
+
 // Plex records a track change against the user whose token sent it,
 // so change a user's tracks with a client holding that user's token.
 userClient := client.ForToken(plexapi.Token(userToken))
@@ -67,11 +70,11 @@ client, err := plexapi.New(serverURL, plexapi.Token(token), plexapi.WithCACertPE
 - Options are `WithCACertPEM`, `WithMaxAttempts`, `WithBaseDelay`, `WithTimeout`, `WithMaxBodyBytes`, `WithMaxListBodyBytes`, `WithLogger`, `WithOnRetry` and `WithHTTPClient`.
 - Library reads are `Sections`, `SectionItems`, `SectionItemsPage`, `WalkSectionItems`, `RecentlyAdded`, `Metadata`, `Children`, `AllLeaves`, `ItemExists`, `ItemsByGUID`, `ShowForEpisodeGUID` and `CountSectionItems`.
 - Activity and server reads are `Sessions`, `History`, `WalkHistory`, `Activities`, `UpdateStatus`, `Identity`, `Accounts`, `AdminAccount`, `Providers`, `StatisticsResources` and `StatisticsBandwidth`.
-- Track changes are `SetAudioStream`, `SetSubtitleStream` and `DisableSubtitles`. `NewTV(token).SharedServers(machineID)` lists a server's shared users from plex.tv.
+- Writes are `SetAudioStream`, `SetSubtitleStream`, `DisableSubtitles` and `RefreshMetadata`. `NewTV(token).SharedServers(machineID)` lists a server's shared users from plex.tv.
 - `WalkSectionItems` and `WalkHistory` read a large listing one `Page` at a time.
 - `FlexInt64` and `FlexBool` read fields Plex sends in more than one form.
 - To decode into your own types, pass a path builder such as `MetadataPath` to `FetchMetadata`, `FetchMetadataList` or `FetchDirectory`. `Get` calls any endpoint no typed call covers.
-- Errors are `ErrNotFound`, `*StatusError`, `*ResponseTooLargeError`, `IsNotFound` and `IsConfigError`.
+- Errors are `ErrNotFound`, `*StatusError` with `IsTransient`, `*ResponseTooLargeError`, `IsNotFound` and `IsConfigError`.
 
 The full reference is on [pkg.go.dev](https://pkg.go.dev/github.com/cplieger/plexapi/v2). [How plexapi works](docs/how-it-works.md) explains each group's behavior.
 
@@ -92,7 +95,7 @@ Redirect refusal and TLS verification belong to the built-in transport. A client
 ## How it handles failures
 
 - GET requests are retried on 429, 502, 503 and 504 and on transient network errors, with jittered exponential backoff that honors `Retry-After`. `WithMaxAttempts(1)` turns retries off.
-- A track change is a PUT and is sent at most once, never retried.
+- A track change or a metadata refresh is a PUT and is sent at most once, never retried.
 - Each attempt times out after 15 seconds without response headers, which makes a stalled attempt a retryable error. `WithTimeout` sets a per-request limit, 2 minutes by default, that applies only when your context has no deadline. Your deadline always wins.
 - Response bodies are capped before decoding, at 10 MB by default and 40 MB for full section listings. Both are configurable, and a body over the cap returns `*ResponseTooLargeError` instead of a cut-off decode.
 
@@ -102,7 +105,7 @@ These are deliberate non-goals:
 
 | Feature | Rationale |
 | --- | --- |
-| Library management writes (edit metadata, delete items, trigger scans) | plexapi is built for tools that read a library and pick tracks, so track selection is the only write it models. |
+| Library management writes (edit metadata, delete items, trigger library scans) | plexapi serves tools that read a library and pick tracks, so it models only track changes and one-item metadata refreshes. |
 | WebSocket notifications | A different transport whose reconnect policy belongs to each app. `BaseTransport()` and `RedirectPolicy()` let your own dialer reuse the hardened transport. |
 | Full plex.tv account surface (devices, friends, PINs) | `SharedServers` is the one account call the client covers. |
 | Insecure TLS (`InsecureSkipVerify`) | Pin the CA instead. The built-in transport always verifies TLS. |

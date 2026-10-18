@@ -43,7 +43,7 @@ Redirect refusal, the CA pin, the retries and the per-attempt timeout belong to 
 
 ## Retries and timeouts
 
-GET requests go through a retry layer from httpx. It retries 429, 502, 503 and 504 answers and transient network errors with jittered exponential backoff, and it honors `Retry-After` on each of those answers. A PUT is never retried, so a track change is applied at most once per call.
+GET requests go through a retry layer from httpx. It retries 429, 502, 503 and 504 answers and transient network errors with jittered exponential backoff, and it honors `Retry-After` on each of those answers. A PUT is never retried, so a track change or a metadata refresh is sent at most once per call.
 
 Each attempt times out after 15 seconds without response headers. That turns a stalled attempt into a retryable error instead of one that hangs the whole sequence. `WithTimeout` applies only when your context has no deadline, and your own deadline is always the budget for the whole call.
 
@@ -59,11 +59,12 @@ Watch history uses the general cap on purpose, in `WalkHistory` too. If Plex ign
 - `SectionItems(key)` lists every item in a section, with rating keys, titles, years and GUIDs.
 - `RecentlyAdded(key, type, sinceUnix)` lists a section's items of one metadata type added since a time, newest first.
 - `Metadata(key)` returns one item. The same call returns a movie, show, season or episode, depending on the key. It returns `ErrNotFound` when the key no longer exists.
+- `RefreshMetadata(key)` sends `PUT /library/metadata/<key>/refresh` once, asking Plex to refresh one item's metadata. A key that is not a number returns `MetadataPath`'s error and sends nothing.
 - `Children(key)` returns a show's seasons or a season's episodes. `AllLeaves(key)` returns every episode of a show.
 - `ItemExists(key)` returns true on a 200 and false on a 404. Any other failure returns an error, such as an auth error, a rate limit, a 5xx or a network error. A caller deciding whether an item is gone never mistakes an unknown answer for "gone".
 - `ItemsByGUID(guid)` returns every item matching an external ID such as `imdb://tt0903747` or `plex://episode/<hash>`. An unknown GUID returns an empty slice.
 - `ShowForEpisodeGUID(guid)` returns the rating key of the show that holds an episode. It returns `""` when nothing matches, when the matches belong to different shows, or when a match carries a malformed show key, because it refuses to guess.
-- `SectionItemsPage(key, type, page)` returns one page of a section and the section's `totalSize`. A `Page` names the offset of the first row (`Start`) and the number of rows (`Size`). `type` 0 is unfiltered, as in `CountSectionItems`.
+- `SectionItemsPage(key, type, page)` returns one page of a section and the section's `totalSize`. A `Page` names the offset of the first row (`Start`) and the number of rows (`Size`). `type` 0 is unfiltered, as in `CountSectionItems`. `MetadataTypeMovie` (1) and `MetadataTypeEpisode` (4) select a movie section's movies and a show section's episodes.
 - `WalkSectionItems(key, type, page, wait)` returns an iterator over a section from `page.Start`, `page.Size` items per request, so no single answer holds the whole section. It ends at an empty page or after `totalSize` items. If the listing keeps growing, the walk ends with an error once it has read `page.Size` items more than the first page's `totalSize`. The page that crosses that count is still read in full. The count is in items, not requests, so a server that sends pages shorter than `page.Size` is still read in full. The first error ends the walk and is yielded once. An item added or removed during a walk can be skipped or read twice.
 - A walk's `wait` is a function or `nil`. The walk calls it right before every page request, after a page shorter than `page.Size` too, so you can pace the requests. An error from it ends the walk like a failed request.
 - A walk can tell that a server ignored paging only when a page holds more rows than asked. A first page like that ends the walk, with an error when it ends short of its `totalSize`. When such a page starts past row 0 and ends past `totalSize`, the server ignored the start offset. The walk then returns only an error, without that page's rows.
@@ -119,7 +120,7 @@ The three are generic methods, which Go 1.27 added, and Go does not allow a gene
 - Fields that can be missing are pointers that stay nil when Plex leaves them out: `Item.LastViewedAt` and `Item.ViewCount`, `Part.Size`, `Section.ScannedAt`, and the `TranscodeHwRequested` and `TranscodeHwFullPipeline` flags on `TranscodeSession`. A part with no size is never read as a zero-byte file. `LastViewedAt` and `ViewCount` are the watch state of the account whose token made the request.
 - `RatingKey` is an item or section key, checked to be a number.
 - `Page` selects one page of a paged listing. `Start` is the offset of the first row and `Size` the number of rows, more than 0.
-- `Media`, `Part` and `Stream` are an item's media files, their parts and their audio, video and subtitle tracks.
+- `Media`, `Part` and `Stream` are an item's media files, their parts and their audio, video and subtitle tracks. `Part.File` is the file's path as the server sees it, and two episodes stored in one file share it. `Stream.Key` is `/library/streams/<id>` for a subtitle Plex read from a sidecar file and empty for a track inside the media file. Plex gives no sidecar's path.
 - `Section`, `ServerIdentity`, `Account`, `SharedServer` and the statistics types match their calls above.
 
 Every `id` on `Media`, `Part` and `Stream` is a `FlexInt`, because `/status/sessions` sends those IDs quoted while the library endpoints send them bare. Convert with `int(part.ID)` to build a `StreamSelection`. The test fixtures for those shapes were checked against Plex Media Server 1.43.3.
@@ -127,6 +128,6 @@ Every `id` on `Media`, `Part` and `Stream` is a `FlexInt`, because `/status/sess
 ## Errors
 
 - `ErrNotFound` is returned when the server answers 404. `IsNotFound(err)` matches it. The plex.tv client returns a `*StatusError` for a 404 instead.
-- `*StatusError` carries `Method`, `Path`, `Status` and `Code` for any other non-200 answer, after retries run out.
+- `*StatusError` carries `Method`, `Path`, `Status` and `Code` for any other non-200 answer, after retries run out. `IsTransient()` reports a 408, a 429 or any 5xx, which `httpx.IsTransient` then counts as transient.
 - `*ResponseTooLargeError` carries `Path` and `Limit` for a body over its cap.
 - `IsConfigError(err)` reports a 4xx answer other than 408 and 429. That is a configuration or authorization problem that will not fix itself. A false result does not mean the error is transient. `ErrNotFound`, `*ResponseTooLargeError` and a rejected rating key also fail again on a retry.
