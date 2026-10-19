@@ -6,16 +6,12 @@ import (
 	"strconv"
 )
 
-// Path builders own the wire grammar for every endpoint the typed surface
-// models: the endpoint paths, Plex's literal single-character filter
-// operators, the rating-key validation applied before any URL
-// interpolation, and — through the Path/ListPath return types — the read-cap
-// class each endpoint decodes under.
-//
-// The `>=` in the history and recently-added filters is a wire contract:
-// one literal `>`, unencoded. Plex silently ignores a malformed (`>>=`) or
-// URL-encoded operator and returns the UNFILTERED listing, which on a large
-// server blows the read cap; Go's url.Parse preserves the literal form.
+// Path builders own every modelled endpoint's wire grammar: its path, Plex's
+// literal filter operators, rating-key validation before any interpolation,
+// and through Path or ListPath the read cap it decodes under. A filter's `>=`
+// is one literal `>`, unencoded: Plex ignores a doubled (`>>=`) or encoded
+// operator and returns the UNFILTERED listing, which on a large server blows
+// the read cap; Go's url.Parse keeps the literal form.
 
 // Path is a server-relative endpoint path whose response decodes under the
 // general read cap (WithMaxBodyBytes). Construct one explicitly
@@ -25,7 +21,8 @@ type Path string
 // ListPath is a server-relative full-listing endpoint path whose response
 // decodes under the large-listing read cap (WithMaxListBodyBytes).
 // Produced by the listing builders (SectionItemsPath, SectionItemsPagePath,
-// RecentlyAddedPath); Client.FetchMetadataList accepts only this type.
+// RecentlyAddedPath, UpdatedSincePath); Client.FetchMetadataList accepts
+// only this type.
 type ListPath string
 
 // SessionsPath returns the active-sessions endpoint path
@@ -64,6 +61,33 @@ func RecentlyAddedPath(section RatingKey, metadataType int, sinceUnix int64) (Li
 	}
 	return ListPath(fmt.Sprintf("/library/sections/%s/all?type=%d&sort=addedAt:desc&addedAt>=%d",
 		section.String(), metadataType, sinceUnix)), nil
+}
+
+// UpdatedSincePath returns a section's listing path filtered server-side to
+// items of metadataType (MetadataTypeMovie or MetadataTypeEpisode) whose
+// updatedAt is at or after sinceUnix, oldest update first. It refuses an
+// invalid section key, any other metadata type and a negative bound.
+func UpdatedSincePath(section RatingKey, metadataType int, sinceUnix int64) (ListPath, error) {
+	if err := section.Validate(); err != nil {
+		return "", err
+	}
+	if metadataType != MetadataTypeMovie && metadataType != MetadataTypeEpisode {
+		return "", fmt.Errorf("invalid metadata type %d for an updated-since listing", metadataType)
+	}
+	if sinceUnix < 0 {
+		return "", fmt.Errorf("invalid updated-since bound %d", sinceUnix)
+	}
+	return updatedSincePath(section, metadataType, sinceUnix), nil
+}
+
+func updatedSincePath(section RatingKey, metadataType int, sinceUnix int64) ListPath {
+	return ListPath(fmt.Sprintf("/library/sections/%s/all?type=%d&sort=updatedAt:asc&updatedAt>=%d",
+		section.String(), metadataType, sinceUnix))
+}
+
+func updatedSincePagePath(section RatingKey, metadataType int, sinceUnix int64, size int) ListPath {
+	return updatedSincePath(section, metadataType, sinceUnix) +
+		ListPath(fmt.Sprintf("&X-Plex-Container-Start=0&X-Plex-Container-Size=%d", size))
 }
 
 // MetadataPath returns the metadata endpoint path for one library item,

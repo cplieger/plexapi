@@ -1,6 +1,6 @@
 # Recorded answers
 
-Each JSON file here is one answer from a real Plex Media Server 1.43.4, recorded with `curl` and a read-only `GET` on 2026-10-17 and 2026-10-18. The token went in the `X-Plex-Token` header only, so no URL or answer carried it.
+Each JSON file here is one answer from a real Plex Media Server 1.43.4, recorded with `curl` and a read-only `GET` on 2026-10-17, 2026-10-18 and 2026-10-19. The token went in the `X-Plex-Token` header only, so no URL or answer carried it.
 
 | File | Request | What it pins |
 | --- | --- | --- |
@@ -10,6 +10,7 @@ Each JSON file here is one answer from a real Plex Media Server 1.43.4, recorded
 | `recently-added.json` | `GET /library/sections/<key>/all?type=1&sort=addedAt:desc&addedAt>=1791504000` | A recently-added read of a movie section, newest first |
 | `upgraded-file-before.json` | `GET /library/sections/<key>/all?type=4`, cut to the one episode's row with `size` set to 1, recorded before its file was upgraded | The episode as it stood: its `addedAt`, `updatedAt`, media, part and file |
 | `upgraded-file-after.json` | `GET /library/sections/<key>/all?type=4&id=<key>` for the same episode, after Plex scanned the upgraded file | An upgrade keeps `ratingKey` and `addedAt`, moves `updatedAt`, and gives the media and part new ids and the new `Part.file` |
+| `updated-since.json` | `GET /library/sections/<key>/all?type=4&sort=updatedAt:asc&updatedAt>=1792200404&X-Plex-Container-Start=0&X-Plex-Container-Size=50` | An updated-since read: every row at or after the bound and ascending by `updatedAt`, eight rows sharing one second, and the upgraded episode last with its moved `updatedAt` and kept `addedAt` |
 
 ## Scrubbing
 

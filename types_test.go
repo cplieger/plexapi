@@ -144,3 +144,30 @@ func TestDecodeUpgradedFilePair(t *testing.T) {
 		t.Errorf("part files %q then %q, want two different paths", bf, af)
 	}
 }
+
+func TestDecodeUpdatedAt(t *testing.T) {
+	tests := []struct {
+		file             string
+		addedAt, updated int64
+	}{
+		{file: "upgraded-file-before.json", addedAt: 1792110060, updated: 1792199733},
+		{file: "upgraded-file-after.json", addedAt: 1792110060, updated: 1792289582},
+	}
+	for _, tt := range tests {
+		t.Run(tt.file, func(t *testing.T) {
+			items, err := newTestClient(t, recordedServer(t, tt.file)).SectionItems(t.Context(), "2")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(items) != 1 {
+				t.Fatalf("items = %d, want 1", len(items))
+			}
+			if got := items[0].AddedAt; got != tt.addedAt {
+				t.Errorf("AddedAt = %d, want %d", got, tt.addedAt)
+			}
+			if got := items[0].UpdatedAt; got != tt.updated {
+				t.Errorf("UpdatedAt = %d, want %d", got, tt.updated)
+			}
+		})
+	}
+}

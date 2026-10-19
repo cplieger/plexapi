@@ -44,6 +44,13 @@ episodes, err := client.AllLeaves(ctx, "1345") // every episode of a show
 sessions, err := client.Sessions(ctx)
 history, err := client.History(ctx, time.Now().Add(-24*time.Hour).Unix())
 
+// Episodes Plex changed since a time, an upgraded file included, oldest
+// change first, 500 per request.
+for ep, err := range client.UpdatedSince(ctx, "2", plexapi.MetadataTypeEpisode, since, 500, nil) {
+	if err != nil { ... }
+	since = max(since, ep.UpdatedAt)
+}
+
 // Ask Plex to refresh one item's metadata; the PUT is sent once.
 err = client.RefreshMetadata(ctx, "49915")
 
@@ -68,7 +75,7 @@ client, err := plexapi.New(serverURL, plexapi.Token(token), plexapi.WithCACertPE
 
 - `New(baseURL, token, ...Option)` builds a server client. `ForToken` gives the same server and connection pool another user's token.
 - Options are `WithCACertPEM`, `WithMaxAttempts`, `WithBaseDelay`, `WithTimeout`, `WithMaxBodyBytes`, `WithMaxListBodyBytes`, `WithLogger`, `WithOnRetry` and `WithHTTPClient`.
-- Library reads are `Sections`, `SectionItems`, `SectionItemsPage`, `WalkSectionItems`, `RecentlyAdded`, `Metadata`, `Children`, `AllLeaves`, `ItemExists`, `ItemsByGUID`, `ShowForEpisodeGUID` and `CountSectionItems`.
+- Library reads are `Sections`, `SectionItems`, `SectionItemsPage`, `WalkSectionItems`, `RecentlyAdded`, `UpdatedSince`, `Metadata`, `Children`, `AllLeaves`, `ItemExists`, `ItemsByGUID`, `ShowForEpisodeGUID` and `CountSectionItems`.
 - Activity and server reads are `Sessions`, `History`, `WalkHistory`, `Activities`, `UpdateStatus`, `Identity`, `Accounts`, `AdminAccount`, `Providers`, `StatisticsResources` and `StatisticsBandwidth`.
 - Writes are `SetAudioStream`, `SetSubtitleStream`, `DisableSubtitles` and `RefreshMetadata`. `NewTV(token).SharedServers(machineID)` lists a server's shared users from plex.tv.
 - `WalkSectionItems` and `WalkHistory` read a large listing one `Page` at a time.
@@ -114,6 +121,7 @@ These are deliberate non-goals:
 ## Documentation
 
 - [How plexapi works](docs/how-it-works.md) is for developers who need each call's contract, the defaults, the read caps, the types and the error classes.
+- [Walking a large listing](docs/walks.md) is for developers who page through a section or read what changed in it since a time.
 
 ## Contributing
 

@@ -34,6 +34,10 @@ func (c *Client) SectionItemsPage(ctx context.Context, section RatingKey, metada
 	if err != nil {
 		return nil, 0, err
 	}
+	return c.listPage(ctx, path)
+}
+
+func (c *Client) listPage(ctx context.Context, path ListPath) ([]Item, int64, error) {
 	var resp MC[struct {
 		Metadata  []Item `json:"Metadata"`
 		TotalSize int64  `json:"totalSize"`
@@ -47,12 +51,11 @@ func (c *Client) SectionItemsPage(ctx context.Context, section RatingKey, metada
 // WalkSectionItems pages through a section listing from page.Start,
 // page.Size items per request with one request in flight; metadataType
 // filters as in SectionItemsPagePath. It ends at an empty page or after
-// totalSize items. A listing that is still growing ends with an error once
-// the walk has read totalSize+page.Size rows, counted from the first page's
-// totalSize; the page that crosses that count is read in full. The first
-// error is yielded once, an incomplete walk and a cancelled ctx included. An item added or removed mid-walk can be skipped or read twice.
-// A non-nil wait is called immediately before every page request, so a
-// caller can pace the walk's requests; its error ends the walk the same way.
+// totalSize items, and with an error once a growing listing has given
+// totalSize+page.Size rows, counting the first page's totalSize. An item
+// added or removed mid-walk can be skipped or read twice. The first error, a
+// cancelled ctx included, is yielded once and ends the walk. A non-nil wait
+// is called right before every page request, and its error ends it too.
 func (c *Client) WalkSectionItems(ctx context.Context, section RatingKey, metadataType int, page Page, wait func(context.Context) error) iter.Seq2[Item, error] {
 	return walkPages(ctx, page, wait, func(ctx context.Context, p Page) ([]Item, int64, error) {
 		return c.SectionItemsPage(ctx, section, metadataType, p)
@@ -68,6 +71,24 @@ func (c *Client) RecentlyAdded(ctx context.Context, sectionKey RatingKey, metada
 		return nil, err
 	}
 	return c.FetchMetadataList[Item](ctx, path)
+}
+
+// UpdatedSince walks a section's items of metadataType updated at or after
+// sinceUnix (UpdatedSincePath), oldest update first, up to size new items per
+// request, calling a non-nil wait before each. Each request reads from the
+// first item updated at or after the newest updatedAt yielded, so an item that
+// changes mid-walk never hides an unread one; an updated one comes again.
+// Every error is yielded once and ends the walk: a bad argument, a failed wait
+// or request, an answer that ignores the filter, sort, size or totalSize or
+// repeats or omits a ratingKey, and growth past the first totalSize plus size.
+func (c *Client) UpdatedSince(ctx context.Context, section RatingKey, metadataType int, sinceUnix int64, size int, wait func(context.Context) error) iter.Seq2[Item, error] {
+	if _, err := UpdatedSincePath(section, metadataType, sinceUnix); err != nil {
+		return func(yield func(Item, error) bool) { yield(Item{}, err) }
+	}
+	return walkUpdated(ctx, sinceUnix, size, wait, func(ctx context.Context, since int64, size int) ([]Item, int64, error) {
+		// UpdatedSincePath validated the arguments; a later bound is a checked row's, at or above sinceUnix.
+		return c.listPage(ctx, updatedSincePagePath(section, metadataType, since, size))
+	})
 }
 
 // Metadata fetches one library item by rating key. The endpoint is

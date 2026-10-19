@@ -49,7 +49,7 @@ Each attempt times out after 15 seconds without response headers. That turns a s
 
 ## Read caps
 
-Every response body is capped before it is decoded. Section listings, from `SectionItems`, `SectionItemsPage`, `WalkSectionItems` and `RecentlyAdded`, use the list cap. Everything else uses the general cap. A body over its cap returns `*ResponseTooLargeError` with the path and the limit, and the client logs one warning, `plexapi: response exceeded read cap`, through its logger. A cut-off body is never decoded.
+Every response body is capped before it is decoded. Section listings, from `SectionItems`, `SectionItemsPage`, `WalkSectionItems`, `RecentlyAdded` and `UpdatedSince`, use the list cap. Everything else uses the general cap. A body over its cap returns `*ResponseTooLargeError` with the path and the limit, and the client logs one warning, `plexapi: response exceeded read cap`, through its logger. A cut-off body is never decoded.
 
 Watch history uses the general cap on purpose, in `WalkHistory` too. If Plex ignored the history filter and sent the full history, the cap turns that into an error instead of a large decode.
 
@@ -57,7 +57,7 @@ Watch history uses the general cap on purpose, in `WalkHistory` too. If Plex ign
 
 - `Sections` lists every library section. Filter by `Section.Type`, comparing with `SectionTypeMovie` or `SectionTypeShow`.
 - `SectionItems(key)` lists every item in a section, with rating keys, titles, years and GUIDs.
-- `RecentlyAdded(key, type, sinceUnix)` lists a section's items of one metadata type added since a time, newest first.
+- `RecentlyAdded(key, type, sinceUnix)` lists a section's items of one metadata type added since a time, newest first. Plex keeps `addedAt` when a file is upgraded, so an upgraded item does not show here. `UpdatedSince` finds it.
 - `Metadata(key)` returns one item. The same call returns a movie, show, season or episode, depending on the key. It returns `ErrNotFound` when the key no longer exists.
 - `RefreshMetadata(key)` sends `PUT /library/metadata/<key>/refresh` once, asking Plex to refresh one item's metadata. A key that is not a number returns `MetadataPath`'s error and sends nothing.
 - `Children(key)` returns a show's seasons or a season's episodes. `AllLeaves(key)` returns every episode of a show.
@@ -65,16 +65,14 @@ Watch history uses the general cap on purpose, in `WalkHistory` too. If Plex ign
 - `ItemsByGUID(guid)` returns every item matching an external ID such as `imdb://tt0903747` or `plex://episode/<hash>`. An unknown GUID returns an empty slice.
 - `ShowForEpisodeGUID(guid)` returns the rating key of the show that holds an episode. It returns `""` when nothing matches, when the matches belong to different shows, or when a match carries a malformed show key, because it refuses to guess.
 - `SectionItemsPage(key, type, page)` returns one page of a section and the section's `totalSize`. A `Page` names the offset of the first row (`Start`) and the number of rows (`Size`). `type` 0 is unfiltered, as in `CountSectionItems`. `MetadataTypeMovie` (1) and `MetadataTypeEpisode` (4) select a movie section's movies and a show section's episodes.
-- `WalkSectionItems(key, type, page, wait)` returns an iterator over a section from `page.Start`, `page.Size` items per request, so no single answer holds the whole section. It ends at an empty page or after `totalSize` items. If the listing keeps growing, the walk ends with an error once it has read `page.Size` items more than the first page's `totalSize`. The page that crosses that count is still read in full. The count is in items, not requests, so a server that sends pages shorter than `page.Size` is still read in full. The first error ends the walk and is yielded once. An item added or removed during a walk can be skipped or read twice.
-- A walk's `wait` is a function or `nil`. The walk calls it right before every page request, after a page shorter than `page.Size` too, so you can pace the requests. An error from it ends the walk like a failed request.
-- A walk can tell that a server ignored paging only when a page holds more rows than asked. A first page like that ends the walk, with an error when it ends short of its `totalSize`. When such a page starts past row 0 and ends past `totalSize`, the server ignored the start offset. The walk then returns only an error, without that page's rows.
+- `WalkSectionItems(key, type, page, wait)` reads a whole section and `UpdatedSince(key, type, sinceUnix, size, wait)` reads the items changed since a time, a few items per request. [Walking a large listing](walks.md) covers both.
 - `CountSectionItems(key, type)` returns the number of items in a section, filtered to one metadata type, or unfiltered when `type` is 0. It reads the `totalSize` field of a one-item page, because Plex leaves the total-size header empty on type-filtered queries.
 
 ## Sessions, history and server calls
 
 - `Sessions()` returns what is playing now. Session items carry `User`, `Player`, `Session`, `TranscodeSession` and the media graph. A direct-play session has no `TranscodeSession`.
 - `History(sinceUnix)` returns watch history since a time, newest first, filtered by the server.
-- `WalkHistory(sinceUnix, page, wait)` returns an iterator over watch history since a time, oldest first, one page at a time. Plays recorded during the walk come after the read position, so earlier pages do not shift. It ends, fails and calls `wait` as `WalkSectionItems` does. Each `HistoryEntry` holds the rating key, account ID, view time and history key as Plex sent them. A rating key can be empty and a missing view time reads as 0, so your code decides which rows to use. A history key longer than 512 bytes is left empty.
+- `WalkHistory(sinceUnix, page, wait)` returns an iterator over watch history since a time, oldest first, one page at a time. Plays recorded during the walk come after the read position, so earlier pages do not shift. It ends, fails and calls `wait` as [`WalkSectionItems`](walks.md#paging-by-offset) does. Each `HistoryEntry` holds the rating key, account ID, view time and history key as Plex sent them. A rating key can be empty and a missing view time reads as 0, so your code decides which rows to use. A history key longer than 512 bytes is left empty.
 - `Activities()` returns the server's running background tasks, such as a library scan or credits detection. `Progress` is a percentage, -1 when Plex cannot tell and nil when absent. `LibrarySectionID` is the section the task works on, empty for a server-wide task.
 - `UpdateStatus()` returns the server's last update check and the releases it found, with their state. It returns `ErrNotFound` when the server has no updater. Download links are left out, because Plex puts the server token in them.
 - `Identity()` returns the server name, machine ID, version, platform, Plex Pass status and active transcode count.
@@ -82,7 +80,7 @@ Watch history uses the general cap on purpose, in `WalkHistory` too. If Plex ign
 - `Providers()` returns duration and storage totals per library.
 - `StatisticsResources(timespan)` and `StatisticsBandwidth(timespan)` return CPU, memory and bandwidth samples. They need Plex Pass and return `ErrNotFound` without it, so a caller can skip them cleanly.
 
-History and recently-added filters write Plex's comparison with one literal, unencoded `>`, as in `viewedAt>=1700000000`. Plex ignores a doubled or URL-encoded operator and returns the full unfiltered set, so the tests pin the literal form.
+History, recently-added and updated-since filters write Plex's comparison with one literal, unencoded `>`, as in `viewedAt>=1700000000`. Plex ignores a doubled or URL-encoded operator and returns the full unfiltered set, so the tests pin the literal form.
 
 ## Track changes
 
@@ -104,6 +102,7 @@ The path builders own every endpoint path the typed calls use, the rating-key ch
 - `MetadataPath(key)`, `ChildrenPath(key)` and `AllLeavesPath(key)` check the key, then return a `Path`.
 - `HistoryPagePath(sinceUnix, page)` checks the page, then returns a `Path` for one page of history, oldest first.
 - `SectionItemsPath(key)`, `SectionItemsPagePath(key, type, page)` and `RecentlyAddedPath(key, type, sinceUnix)` check their arguments, then return a `ListPath`.
+- `UpdatedSincePath(key, type, sinceUnix)` returns the `ListPath` of a section's items updated at or after a time, oldest change first. It refuses a key that is not a number, a type other than `MetadataTypeMovie` or `MetadataTypeEpisode`, and a negative time.
 
 A `Path` decodes under the general cap and a `ListPath` under the list cap. `FetchMetadata[T]` and `FetchDirectory[T]` accept a `Path`, and `FetchMetadataList[T]` accepts only a `ListPath`, so using the wrong cap is a compile error. They decode the response into your own type `T` over the same transport. Use them when your tool has its own data model, instead of building paths by hand.
 
@@ -117,6 +116,7 @@ The three are generic methods, which Go 1.27 added, and Go does not allow a gene
 - `Item` is Plex's one shape for library entries, sessions and history rows, with different fields filled in by each endpoint.
 - `FlexInt` reads a field Plex sends as either a number or a quoted string. Null, a missing field and an empty string read as 0. `FlexInt64` does the same for sizes and timestamps.
 - `FlexBool` reads a flag Plex sends as `true`/`false`, `0`/`1` or the same values quoted. Any other value reads as false with `Valid()` false, and never fails the decode, because one malformed session field would otherwise lose the whole answer. It only decodes, so encoding one writes `{}`.
+- `Item.AddedAt` and `Item.UpdatedAt` are Unix seconds, 0 when Plex leaves them out. An upgraded file keeps its `AddedAt` and moves its `UpdatedAt`.
 - Fields that can be missing are pointers that stay nil when Plex leaves them out: `Item.LastViewedAt` and `Item.ViewCount`, `Part.Size`, `Section.ScannedAt`, and the `TranscodeHwRequested` and `TranscodeHwFullPipeline` flags on `TranscodeSession`. A part with no size is never read as a zero-byte file. `LastViewedAt` and `ViewCount` are the watch state of the account whose token made the request.
 - `RatingKey` is an item or section key, checked to be a number.
 - `Page` selects one page of a paged listing. `Start` is the offset of the first row and `Size` the number of rows, more than 0.

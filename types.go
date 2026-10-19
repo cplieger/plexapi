@@ -155,7 +155,7 @@ func (r RatingKey) Validate() error {
 // / TranscodeSession, a metadata fetch adds the Media→Part→Stream graph.
 //
 // LastViewedAt and ViewCount are the token's account's watch state, nil
-// when absent; an AddedAt <= 0 is unknown.
+// when absent; AddedAt and UpdatedAt are Unix seconds, <= 0 when unknown.
 type Item struct {
 	LastViewedAt         *FlexInt64        `json:"lastViewedAt,omitempty"`
 	ViewCount            *FlexInt          `json:"viewCount,omitempty"`
@@ -179,6 +179,7 @@ type Item struct {
 	Media                []Media           `json:"Media"`
 	Label                []Label           `json:"Label"`
 	AddedAt              int64             `json:"addedAt"`
+	UpdatedAt            int64             `json:"updatedAt"`
 	ViewedAt             int64             `json:"viewedAt"`
 	Year                 int               `json:"year"`
 	Index                FlexInt           `json:"index"`
