@@ -1,13 +1,21 @@
 package plexapi
 
 import (
+	"cmp"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -862,5 +870,592 @@ func TestUpdateStatusNotFound(t *testing.T) {
 	srv, _ := fixtureServer(t, map[string]string{})
 	if _, err := newTestClient(t, srv).UpdateStatus(t.Context()); !errors.Is(err, ErrNotFound) {
 		t.Errorf("UpdateStatus() on 404 = %v, want ErrNotFound", err)
+	}
+}
+
+// recordedFilterServer answers section listings from one recorded answer,
+// keeping the rows Plex's updatedAt>= or addedAt>= filter would keep.
+func recordedFilterServer(t *testing.T, name string) *httptest.Server {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join("testdata", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		MediaContainer struct {
+			Metadata []map[string]any `json:"Metadata"`
+		} `json:"MediaContainer"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q, err := url.ParseQuery(r.URL.RawQuery)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		field, bound := "", ""
+		for _, f := range []string{"updatedAt", "addedAt"} {
+			if v := q.Get(f + ">"); v != "" {
+				field, bound = f, v
+			}
+		}
+		since, err := strconv.ParseInt(bound, 10, 64)
+		if field == "" || err != nil {
+			http.Error(w, "want one updatedAt>= or addedAt>= filter", http.StatusBadRequest)
+			return
+		}
+		kept := []map[string]any{}
+		for _, row := range doc.MediaContainer.Metadata {
+			if v, ok := row[field].(float64); ok && int64(v) >= since {
+				kept = append(kept, row)
+			}
+		}
+		out, err := json.Marshal(map[string]any{"MediaContainer": map[string]any{"totalSize": len(kept), "size": len(kept), "Metadata": kept}})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write(out)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func partFiles(it Item) []string {
+	var files []string
+	for _, m := range it.Media {
+		for _, p := range m.Part {
+			files = append(files, p.File)
+		}
+	}
+	return files
+}
+
+func TestUpdatedSinceFindsUpgradedFile(t *testing.T) {
+	before, err := newTestClient(t, recordedServer(t, "upgraded-file-before.json")).SectionItems(t.Context(), "2")
+	if err != nil || len(before) != 1 {
+		t.Fatalf("before answer = %d items, err %v, want 1", len(before), err)
+	}
+	since := before[0].UpdatedAt + 1
+	c := newTestClient(t, recordedFilterServer(t, "upgraded-file-after.json"))
+
+	var got []Item
+	for it, err := range c.UpdatedSince(t.Context(), "2", MetadataTypeEpisode, since, 100, nil) {
+		if err != nil {
+			t.Fatalf("UpdatedSince(%d) error %v", since, err)
+		}
+		got = append(got, it)
+	}
+	if len(got) != 1 || got[0].RatingKey != before[0].RatingKey {
+		t.Fatalf("UpdatedSince(%d) = %d items, want the upgraded episode %s", since, len(got), before[0].RatingKey)
+	}
+	const wantFile = "/media/tv/Grey's Anatomy (2005) {imdb-tt0413573}/Season 23/Greys Anatomy (2005) - S23E01 - Collide [DSNP][WEBDL-1080p][EAC3 5.1][h264]-NTb.mkv"
+	if files := partFiles(got[0]); !slices.Equal(files, []string{wantFile}) || slices.Equal(files, partFiles(before[0])) {
+		t.Errorf("upgraded part files = %q, want the new file %q", files, wantFile)
+	}
+
+	recent, err := c.RecentlyAdded(t.Context(), "2", MetadataTypeEpisode, since)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recent) != 0 {
+		t.Errorf("RecentlyAdded(%d) = %d items, want none: an upgrade keeps addedAt", since, len(recent))
+	}
+}
+
+// The recording is GET .../all?type=4&sort=updatedAt:asc&updatedAt>=1792200404
+// with a 50-row page against Plex 1.43.4 (testdata/README.md).
+func TestUpdatedSinceRecordedAnswer(t *testing.T) {
+	const since = 1792200404
+	var got []Item
+	for it, err := range newTestClient(t, recordedServer(t, "updated-since.json")).UpdatedSince(t.Context(), "2", MetadataTypeEpisode, since, 50, nil) {
+		if err != nil {
+			t.Fatalf("UpdatedSince error %v", err)
+		}
+		got = append(got, it)
+	}
+	if len(got) != 9 {
+		t.Fatalf("items = %d, want 9", len(got))
+	}
+	for i, it := range got {
+		if it.UpdatedAt < since || (i > 0 && it.UpdatedAt < got[i-1].UpdatedAt) {
+			t.Errorf("item %s updatedAt %d at %d, want at or after %d, ascending", it.RatingKey, it.UpdatedAt, i, since)
+		}
+	}
+	if last := got[8]; last.RatingKey != "724218" || last.UpdatedAt != 1792289582 || last.AddedAt != 1792110060 {
+		t.Errorf("last item = %s updated %d added %d, want the upgraded episode 724218 updated 1792289582 added 1792110060", last.RatingKey, last.UpdatedAt, last.AddedAt)
+	}
+}
+
+type updatedRow struct {
+	key     string
+	updated int64
+}
+
+// updatedServer serves a section listing as Plex answers
+// sort=updatedAt:asc&updatedAt>=N with paging: rows at or after N, ascending
+// by updatedAt, ties in slice order, totalSize the filtered count. change
+// runs before request n (from 0) and returns the rows that request sees; a
+// positive pageCap sends at most that many rows per page.
+type updatedServer struct {
+	change  func(n int, rows []updatedRow) []updatedRow
+	rows    []updatedRow
+	queries []string
+	pageCap int
+	mu      sync.Mutex
+}
+
+func (s *updatedServer) recorded() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.queries)
+}
+
+func newUpdatedServer(t *testing.T, s *updatedServer) *Client {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		n := len(s.queries)
+		s.queries = append(s.queries, r.URL.RawQuery)
+		if s.change != nil {
+			s.rows = s.change(n, s.rows)
+		}
+		q, err := url.ParseQuery(r.URL.RawQuery)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		since, errSince := strconv.ParseInt(q.Get("updatedAt>"), 10, 64)
+		start, errStart := strconv.Atoi(q.Get("X-Plex-Container-Start"))
+		size, errSize := strconv.Atoi(q.Get("X-Plex-Container-Size"))
+		if errSince != nil || errStart != nil || errSize != nil || q.Get("sort") != "updatedAt:asc" {
+			http.Error(w, "want sort=updatedAt:asc, updatedAt>= and paging", http.StatusBadRequest)
+			return
+		}
+		var kept []updatedRow
+		for _, row := range s.rows {
+			if row.updated >= since {
+				kept = append(kept, row)
+			}
+		}
+		slices.SortStableFunc(kept, func(a, b updatedRow) int { return cmp.Compare(a.updated, b.updated) })
+		if s.pageCap > 0 {
+			size = min(size, s.pageCap)
+		}
+		page := kept[min(start, len(kept)):min(start+size, len(kept))]
+		fmt.Fprintf(w, `{"MediaContainer":{"totalSize":%d,"size":%d,"Metadata":[%s]}}`, len(kept), len(page), updatedRowsJSON(page))
+	}))
+	t.Cleanup(srv.Close)
+	return newTestClient(t, srv, WithMaxAttempts(1))
+}
+
+func updatedRowsJSON(rows []updatedRow) string {
+	out := make([]string, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, fmt.Sprintf(`{"ratingKey":%q,"updatedAt":%d}`, r.key, r.updated))
+	}
+	return strings.Join(out, ",")
+}
+
+func distinctRows(n int) []updatedRow {
+	rows := make([]updatedRow, n)
+	for i := range rows {
+		rows[i] = updatedRow{key: strconv.Itoa(i), updated: 1000 + int64(i)}
+	}
+	return rows
+}
+
+// touch moves the row keyed key to updatedAt at, as a Plex update does:
+// it now sorts after every row updated earlier.
+func touch(rows []updatedRow, key string, at int64) []updatedRow {
+	i := slices.IndexFunc(rows, func(r updatedRow) bool { return r.key == key })
+	row := rows[i]
+	row.updated = at
+	return append(slices.Delete(rows, i, i+1), row)
+}
+
+func drop(rows []updatedRow, key string) []updatedRow {
+	return slices.DeleteFunc(rows, func(r updatedRow) bool { return r.key == key })
+}
+
+func insertBefore(rows []updatedRow, before string, row updatedRow) []updatedRow {
+	i := slices.IndexFunc(rows, func(r updatedRow) bool { return r.key == before })
+	return slices.Insert(rows, i, row)
+}
+
+func tiedRows(at int64, keys ...string) []updatedRow {
+	rows := make([]updatedRow, len(keys))
+	for i, k := range keys {
+		rows[i] = updatedRow{key: k, updated: at}
+	}
+	return rows
+}
+
+func TestUpdatedSincePages(t *testing.T) {
+	t.Run("two full pages then a short one", func(t *testing.T) {
+		s := &updatedServer{rows: distinctRows(8)}
+		c := newUpdatedServer(t, s)
+		var sentAtWait []int
+		wait := func(context.Context) error {
+			sentAtWait = append(sentAtWait, len(s.recorded()))
+			return nil
+		}
+		keys, errs := collectItems(c.UpdatedSince(t.Context(), "2", MetadataTypeEpisode, 1000, 3, wait))
+		if len(errs) != 0 {
+			t.Fatalf("UpdatedSince errors = %v, want none", errs)
+		}
+		if got, want := strings.Join(keys, ","), "0,1,2,3,4,5,6,7"; got != want {
+			t.Errorf("keys = %s, want %s", got, want)
+		}
+		wantQueries := []string{
+			"type=4&sort=updatedAt:asc&updatedAt>=1000&X-Plex-Container-Start=0&X-Plex-Container-Size=3",
+			"type=4&sort=updatedAt:asc&updatedAt>=1002&X-Plex-Container-Start=0&X-Plex-Container-Size=4",
+			"type=4&sort=updatedAt:asc&updatedAt>=1005&X-Plex-Container-Start=0&X-Plex-Container-Size=4",
+		}
+		if got := s.recorded(); !slices.Equal(got, wantQueries) {
+			t.Errorf("RawQuery per page = %q, want %q", got, wantQueries)
+		}
+		if got, want := fmt.Sprint(sentAtWait), "[0 1 2]"; got != want {
+			t.Errorf("requests sent at each wait = %s, want %s (one wait right before each request)", got, want)
+		}
+	})
+
+	t.Run("a failed wait ends the walk", func(t *testing.T) {
+		s := &updatedServer{rows: distinctRows(8)}
+		c := newUpdatedServer(t, s)
+		errStop := errors.New("budget closed")
+		calls := 0
+		wait := func(context.Context) error {
+			if calls++; calls == 2 {
+				return errStop
+			}
+			return nil
+		}
+		keys, errs := collectItems(c.UpdatedSince(t.Context(), "2", MetadataTypeEpisode, 1000, 3, wait))
+		if got := strings.Join(keys, ","); got != "0,1,2" || len(errs) != 1 || !errors.Is(errs[0], errStop) {
+			t.Errorf("keys %s, errors %v, want keys 0,1,2 and the wait's error once", got, errs)
+		}
+		if n := len(s.recorded()); n != 1 {
+			t.Errorf("requests = %d, want 1 (none after the failed wait)", n)
+		}
+	})
+
+	t.Run("a failed request ends the walk", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusBadGateway)
+		}))
+		t.Cleanup(srv.Close)
+		keys, errs := collectItems(newTestClient(t, srv, WithMaxAttempts(1)).UpdatedSince(t.Context(), "2", MetadataTypeEpisode, 1000, 3, nil))
+		if se, ok := errors.AsType[*StatusError](errors.Join(errs...)); len(keys) != 0 || len(errs) != 1 || !ok || se.Code != http.StatusBadGateway {
+			t.Errorf("keys %q, errors %v, want one *StatusError 502", keys, errs)
+		}
+	})
+
+	t.Run("a consumer break sends no more requests", func(t *testing.T) {
+		s := &updatedServer{rows: distinctRows(8)}
+		c := newUpdatedServer(t, s)
+		for range c.UpdatedSince(t.Context(), "2", MetadataTypeEpisode, 1000, 3, nil) {
+			break
+		}
+		if n := len(s.recorded()); n != 1 {
+			t.Errorf("requests after a break = %d, want 1", n)
+		}
+	})
+
+	t.Run("a listing emptied mid-walk ends it", func(t *testing.T) {
+		s := &updatedServer{rows: distinctRows(6), change: func(n int, rows []updatedRow) []updatedRow {
+			if n == 1 {
+				return rows[:2]
+			}
+			return rows
+		}}
+		keys, errs := collectItems(newUpdatedServer(t, s).UpdatedSince(t.Context(), "2", MetadataTypeEpisode, 1000, 3, nil))
+		if got := strings.Join(keys, ","); got != "0,1,2" || len(errs) != 0 {
+			t.Errorf("keys %s, errors %v, want 0,1,2 and none", got, errs)
+		}
+	})
+
+	t.Run("a server capping its pages is read in full", func(t *testing.T) {
+		s := &updatedServer{rows: distinctRows(8), pageCap: 3}
+		keys, errs := collectItems(newUpdatedServer(t, s).UpdatedSince(t.Context(), "2", MetadataTypeEpisode, 1000, math.MaxInt, nil))
+		if got, want := strings.Join(keys, ","), "0,1,2,3,4,5,6,7"; got != want || len(errs) != 0 {
+			t.Errorf("keys %s, errors %v, want %s and none", got, errs, want)
+		}
+		size := "X-Plex-Container-Size=" + strconv.Itoa(math.MaxInt)
+		for i, q := range s.recorded() {
+			if !strings.HasSuffix(q, size) {
+				t.Errorf("request %d = %q, want the size saturated at %s", i, q, size)
+			}
+		}
+	})
+
+	t.Run("rejects a size below one without a request", func(t *testing.T) {
+		s := &updatedServer{rows: distinctRows(5)}
+		c := newUpdatedServer(t, s)
+		for _, size := range []int{0, -1, math.MinInt} {
+			if keys, errs := collectItems(c.UpdatedSince(t.Context(), "2", MetadataTypeEpisode, 1000, size, nil)); len(keys) != 0 || len(errs) != 1 {
+				t.Errorf("UpdatedSince(size %d) = keys %q, errors %v, want one error", size, keys, errs)
+			}
+		}
+		if n := len(s.recorded()); n != 0 {
+			t.Errorf("requests = %d, want 0", n)
+		}
+	})
+}
+
+func TestUpdatedSinceStaticListingEverySize(t *testing.T) {
+	rows := slices.Concat(
+		tiedRows(1000, "a"),
+		tiedRows(1005, "b", "c", "d", "e", "f", "g"),
+		tiedRows(1006, "h"),
+		tiedRows(1007, "i"),
+		tiedRows(1009, "j", "k"),
+	)
+	want := "a,b,c,d,e,f,g,h,i,j,k"
+	for size := 1; size <= len(rows)+1; size++ {
+		t.Run(strconv.Itoa(size), func(t *testing.T) {
+			keys, errs := collectItems(newUpdatedServer(t, &updatedServer{rows: slices.Clone(rows)}).UpdatedSince(t.Context(), "2", MetadataTypeEpisode, 1000, size, nil))
+			if got := strings.Join(keys, ","); got != want || len(errs) != 0 {
+				t.Errorf("keys %s, errors %v, want %s and none", got, errs, want)
+			}
+		})
+	}
+}
+
+func TestUpdatedSinceTiesSpanPages(t *testing.T) {
+	rows := distinctRows(9)
+	for i := range 7 {
+		rows[i].updated = 1000
+	}
+	s := &updatedServer{rows: rows}
+	keys, errs := collectItems(newUpdatedServer(t, s).UpdatedSince(t.Context(), "2", MetadataTypeMovie, 1000, 3, nil))
+	if got, want := strings.Join(keys, ","), "0,1,2,3,4,5,6,7,8"; got != want || len(errs) != 0 {
+		t.Errorf("keys %s, errors %v, want %s and none", got, errs, want)
+	}
+	wantQueries := []string{
+		"type=1&sort=updatedAt:asc&updatedAt>=1000&X-Plex-Container-Start=0&X-Plex-Container-Size=3",
+		"type=1&sort=updatedAt:asc&updatedAt>=1000&X-Plex-Container-Start=0&X-Plex-Container-Size=6",
+		"type=1&sort=updatedAt:asc&updatedAt>=1000&X-Plex-Container-Start=0&X-Plex-Container-Size=9",
+	}
+	if got := s.recorded(); !slices.Equal(got, wantQueries) {
+		t.Errorf("RawQuery per page = %q, want %q", got, wantQueries)
+	}
+}
+
+// A row read earlier that Plex updates or removes mid-walk shifts every
+// later offset of the listing the walk started with; no unread row may be
+// lost to that shift.
+func TestUpdatedSinceChangeBehindWalkSkipsNothing(t *testing.T) {
+	tests := []struct {
+		name   string
+		change func([]updatedRow) []updatedRow
+		want   string
+	}{
+		{name: "update", change: func(r []updatedRow) []updatedRow { return touch(r, "0", 2000) }, want: "0,1,2,3,4,5,6,7,0"},
+		{name: "removal", change: func(r []updatedRow) []updatedRow { return drop(r, "1") }, want: "0,1,2,3,4,5,6,7"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &updatedServer{rows: distinctRows(8), change: func(n int, rows []updatedRow) []updatedRow {
+				if n == 1 {
+					return tt.change(rows)
+				}
+				return rows
+			}}
+			keys, errs := collectItems(newUpdatedServer(t, s).UpdatedSince(t.Context(), "2", MetadataTypeEpisode, 1000, 3, nil))
+			if got := strings.Join(keys, ","); got != tt.want || len(errs) != 0 {
+				t.Errorf("keys %s, errors %v, want %s and none", got, errs, tt.want)
+			}
+		})
+	}
+}
+
+// Rows of the second being read that move, go or arrive between requests,
+// a read row leaving while an unseen one enters ahead of the rest included,
+// lose no row that stays in the listing.
+func TestUpdatedSinceTieChangeSkipsNothing(t *testing.T) {
+	x := updatedRow{key: "x", updated: 1000}
+	tests := []struct {
+		name   string
+		change func([]updatedRow) []updatedRow
+		want   string
+	}{
+		{name: "read row updated", change: func(r []updatedRow) []updatedRow { return touch(r, "a", 2000) }, want: "a,b,c,d,e,f,a"},
+		{name: "read row removed", change: func(r []updatedRow) []updatedRow { return drop(r, "b") }, want: "a,b,c,d,e,f"},
+		{name: "unseen row arrives", change: func(r []updatedRow) []updatedRow { return insertBefore(r, "b", x) }, want: "a,b,c,x,d,e,f"},
+		{
+			name:   "read row removed as an unseen one arrives",
+			change: func(r []updatedRow) []updatedRow { return insertBefore(drop(r, "a"), "c", x) },
+			want:   "a,b,c,x,d,e,f",
+		},
+		{
+			name:   "read row updated as an unseen one arrives",
+			change: func(r []updatedRow) []updatedRow { return insertBefore(touch(r, "a", 2000), "c", x) },
+			want:   "a,b,c,x,d,e,f,a",
+		},
+		{name: "read rows reordered", change: func(r []updatedRow) []updatedRow { return slices.Concat(r[2:3], r[:2], r[3:]) }, want: "a,b,c,d,e,f"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &updatedServer{rows: tiedRows(1000, "a", "b", "c", "d", "e", "f"), change: func(n int, rows []updatedRow) []updatedRow {
+				if n == 1 {
+					return tt.change(rows)
+				}
+				return rows
+			}}
+			keys, errs := collectItems(newUpdatedServer(t, s).UpdatedSince(t.Context(), "2", MetadataTypeEpisode, 1000, 3, nil))
+			if got := strings.Join(keys, ","); got != tt.want || len(errs) != 0 {
+				t.Errorf("keys %s, errors %v, want %s and none", got, errs, tt.want)
+			}
+		})
+	}
+}
+
+// Read rows that leave the second being read free their room in the next
+// request; the walk still yields at most size items per request and loses
+// no row behind the ones it yields.
+func TestUpdatedSinceYieldsAtMostSizePerRequest(t *testing.T) {
+	const size = 3
+	touchABC := func(r []updatedRow) []updatedRow { return touch(touch(touch(r, "a", 2000), "b", 2000), "c", 2000) }
+	tests := []struct {
+		name   string
+		rows   []updatedRow
+		change func([]updatedRow) []updatedRow
+		want   string
+	}{
+		{
+			name:   "read row removed inside a tie",
+			rows:   tiedRows(1000, "a", "b", "c", "d", "e", "f", "g", "h", "i", "j"),
+			change: func(r []updatedRow) []updatedRow { return drop(r, "a") },
+			want:   "a,b,c,d,e,f,g,h,i,j",
+		},
+		{
+			name:   "read rows updated inside a tie",
+			rows:   tiedRows(1000, "a", "b", "c", "d", "e", "f", "g", "h"),
+			change: touchABC,
+			want:   "a,b,c,d,e,f,g,h,a,b,c",
+		},
+		{
+			name:   "read rows updated ahead of a later unread second",
+			rows:   append(tiedRows(1000, "a", "b", "c", "d", "e", "f", "g", "h"), updatedRow{key: "i", updated: 1500}),
+			change: touchABC,
+			want:   "a,b,c,d,e,f,g,h,i,a,b,c",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &updatedServer{rows: tt.rows, change: func(n int, rows []updatedRow) []updatedRow {
+				if n == 1 {
+					return tt.change(rows)
+				}
+				return rows
+			}}
+			var keys []string
+			var errs []error
+			yieldedAtWait := []int{}
+			wait := func(context.Context) error {
+				yieldedAtWait = append(yieldedAtWait, len(keys))
+				return nil
+			}
+			for it, err := range newUpdatedServer(t, s).UpdatedSince(t.Context(), "2", MetadataTypeEpisode, 1000, size, wait) {
+				if err != nil {
+					errs = append(errs, err)
+					continue
+				}
+				keys = append(keys, it.RatingKey)
+			}
+			if got := strings.Join(keys, ","); got != tt.want || len(errs) != 0 {
+				t.Errorf("keys %s, errors %v, want %s and none", got, errs, tt.want)
+			}
+			yieldedAtWait = append(yieldedAtWait, len(keys))
+			perRequest := make([]int, len(yieldedAtWait)-1)
+			for i := range perRequest {
+				perRequest[i] = yieldedAtWait[i+1] - yieldedAtWait[i]
+			}
+			if slices.Max(perRequest) > size {
+				t.Errorf("items per request = %v, want at most %d each", perRequest, size)
+			}
+		})
+	}
+}
+
+// Each answer the walk cannot trust ends it with one error before any of
+// that answer's rows is yielded.
+func TestUpdatedSinceRefusesUntrustedAnswer(t *testing.T) {
+	page := func(total int, rows ...updatedRow) string {
+		return fmt.Sprintf(`{"MediaContainer":{"totalSize":%d,"Metadata":[%s]}}`, total, updatedRowsJSON(rows))
+	}
+	r := func(key string, at int64) updatedRow { return updatedRow{key: key, updated: at} }
+	tests := []struct {
+		name    string
+		answers []string
+		want    string
+		keys    string
+	}{
+		{name: "row below the bound", answers: []string{page(2, r("a", 999), r("b", 1001))}, want: "below"},
+		{name: "rows out of order", answers: []string{page(3, r("a", 1002), r("b", 1001))}, want: "order"},
+		{name: "page larger than asked", answers: []string{page(4, r("a", 1000), r("b", 1001), r("c", 1002), r("d", 1003))}, want: "page size"},
+		{name: "totalSize missing", answers: []string{page(0, r("a", 1000), r("b", 1001), r("c", 1002))}, want: "totalSize"},
+		{name: "row without a ratingKey", answers: []string{page(2, r("a", 1000), r("", 1000))}, want: "no ratingKey"},
+		{name: "ratingKey repeated in a tie", answers: []string{page(3, r("a", 1000), r("a", 1000), r("b", 1000))}, want: "ratingKey a twice"},
+		{name: "ratingKey repeated across seconds", answers: []string{page(3, r("a", 1000), r("b", 1001), r("a", 1002))}, want: "ratingKey a twice"},
+		{name: "empty first page below totalSize", answers: []string{page(3)}, want: "empty page"},
+		{
+			name:    "empty later page below totalSize",
+			answers: []string{page(6, r("a", 1000), r("b", 1001), r("c", 1002)), page(4)},
+			want:    "empty page", keys: "a,b,c",
+		},
+		{
+			name:    "no row past the rows already read",
+			answers: []string{page(6, r("a", 1000), r("b", 1001), r("c", 1002)), page(4, r("c", 1002))},
+			want:    "no unread row", keys: "a,b,c",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var requests atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				n := int(requests.Add(1)) - 1
+				if n >= len(tt.answers) {
+					http.Error(w, "no more answers", http.StatusTeapot)
+					return
+				}
+				_, _ = w.Write([]byte(tt.answers[n]))
+			}))
+			t.Cleanup(srv.Close)
+			keys, errs := collectItems(newTestClient(t, srv).UpdatedSince(t.Context(), "2", MetadataTypeEpisode, 1000, 3, nil))
+			if got := strings.Join(keys, ","); got != tt.keys || len(errs) != 1 || !strings.Contains(errs[0].Error(), tt.want) {
+				t.Errorf("keys %q, errors %v, want keys %q and one error naming %q", got, errs, tt.keys, tt.want)
+			}
+			if n := int(requests.Load()); n != len(tt.answers) {
+				t.Errorf("requests = %d, want %d", n, len(tt.answers))
+			}
+		})
+	}
+}
+
+// A listing Plex keeps updating ahead of the walk ends it with an error
+// once it has read the first totalSize plus size rows.
+func TestUpdatedSinceGrowthBound(t *testing.T) {
+	next := int64(2000)
+	s := &updatedServer{rows: distinctRows(6), change: func(n int, rows []updatedRow) []updatedRow {
+		if n == 0 {
+			return rows
+		}
+		for range 3 {
+			rows = append(rows, updatedRow{key: "new" + strconv.FormatInt(next, 10), updated: next})
+			next++
+		}
+		return rows
+	}}
+	keys, errs := collectItems(newUpdatedServer(t, s).UpdatedSince(t.Context(), "2", MetadataTypeEpisode, 1000, 3, nil))
+	if len(keys) != 9 || len(errs) != 1 || !strings.Contains(errs[0].Error(), "still growing") {
+		t.Errorf("%d keys, errors %v, want 9 keys (6+3) and one growth error", len(keys), errs)
+	}
+	if n := len(s.recorded()); n != 3 {
+		t.Errorf("requests = %d, want 3", n)
 	}
 }

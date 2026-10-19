@@ -1,0 +1,1067 @@
+{
+ "MediaContainer": {
+  "size": 9,
+  "totalSize": 9,
+  "offset": 0,
+  "allowSync": true,
+  "art": "/:/resources/show-fanart.jpg",
+  "identifier": "com.plexapp.plugins.library",
+  "librarySectionID": 2,
+  "librarySectionTitle": "TV Shows",
+  "librarySectionUUID": "00000000-0000-4000-8000-000000000001",
+  "mediaTagPrefix": "/system/bundle/media/flags/",
+  "mediaTagVersion": 1786914632,
+  "nocache": true,
+  "thumb": "/:/resources/show.png",
+  "title1": "TV Shows",
+  "title2": "All Shows",
+  "viewGroup": "show",
+  "viewMode": 65592,
+  "Metadata": [
+   {
+    "ratingKey": "724205",
+    "key": "/library/metadata/724205",
+    "parentRatingKey": "724204",
+    "grandparentRatingKey": "642046",
+    "guid": "plex://episode/68f35568133e40c17e34b94d",
+    "parentGuid": "plex://season/68f35562133e40c17e34b424",
+    "grandparentGuid": "plex://show/6274f781093e999f383e7197",
+    "grandparentSlug": "the-diplomat-1",
+    "type": "episode",
+    "title": "Windsor",
+    "grandparentKey": "/library/metadata/642046",
+    "parentKey": "/library/metadata/724204",
+    "grandparentTitle": "The Diplomat",
+    "parentTitle": "Season 4",
+    "contentRating": "TV-MA",
+    "summary": "On an unplanned stopover at Windsor Castle, Kate grows wary of Hal and Grace's dynamic as she tries to contain the fallout from their covert actions.",
+    "index": 1,
+    "parentIndex": 4,
+    "audienceRating": 9.5,
+    "viewCount": 1,
+    "lastViewedAt": 1792179787,
+    "year": 2026,
+    "thumb": "/library/metadata/724205/thumb/1792200404",
+    "art": "/library/metadata/642046/art/1792200530",
+    "parentThumb": "/library/metadata/724204/thumb/1792200404",
+    "grandparentThumb": "/library/metadata/642046/thumb/1792200530",
+    "grandparentArt": "/library/metadata/642046/art/1792200530",
+    "grandparentTheme": "/library/metadata/642046/theme/1792200530",
+    "duration": 2932554,
+    "originallyAvailableAt": "2026-10-15",
+    "addedAt": 1792049761,
+    "updatedAt": 1792200404,
+    "audienceRatingImage": "themoviedb://image.rating",
+    "chapterSource": "media",
+    "loudnessAnalysisVersion": "0.02",
+    "Media": [
+     {
+      "id": 914430,
+      "duration": 2932554,
+      "bitrate": 5354,
+      "width": 1920,
+      "height": 1080,
+      "aspectRatio": 1.78,
+      "audioChannels": 6,
+      "audioCodec": "eac3",
+      "videoCodec": "h264",
+      "videoResolution": "1080",
+      "container": "mkv",
+      "videoFrameRate": "24p",
+      "audioProfile": "dolby digital plus + dolby atmos",
+      "videoProfile": "main",
+      "hasVoiceActivity": true,
+      "Part": [
+       {
+        "id": 1047364,
+        "key": "/library/parts/1047364/1792049711/file.mkv",
+        "duration": 2932554,
+        "file": "/media/tv/The Diplomat (2023) {imdb-tt17491088}/Season 04/The Diplomat US (2023) - S04E01 - TBA [NF][WEBDL-1080p][EAC3 Atmos 5.1][x264]-FLUX.mkv",
+        "size": 1964285694,
+        "audioProfile": "dolby digital plus + dolby atmos",
+        "container": "mkv",
+        "indexes": "sd",
+        "videoProfile": "main"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "Windsor",
+      "type": "coverPoster",
+      "url": "/library/metadata/642046/thumb/1792200530"
+     },
+     {
+      "alt": "Windsor",
+      "type": "snapshot",
+      "url": "/library/metadata/724205/thumb/1792200404"
+     },
+     {
+      "alt": "Windsor",
+      "type": "background",
+      "url": "/library/metadata/642046/art/1792200530"
+     },
+     {
+      "alt": "Windsor",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/642046/squareArt/1792200530"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "11333b",
+     "topRight": "2e3b3f",
+     "bottomRight": "04171f",
+     "bottomLeft": "153946"
+    },
+    "Director": [
+     {
+      "tag": "Alex Graves"
+     }
+    ],
+    "Writer": [
+     {
+      "tag": "Debora Cahn"
+     },
+     {
+      "tag": "Anna Hagen"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Keri Russell"
+     },
+     {
+      "tag": "Rufus Sewell"
+     },
+     {
+      "tag": "David Gyasi"
+     }
+    ]
+   },
+   {
+    "ratingKey": "724206",
+    "key": "/library/metadata/724206",
+    "parentRatingKey": "724204",
+    "grandparentRatingKey": "642046",
+    "guid": "plex://episode/6a859cf77f10b79f800c6f4a",
+    "parentGuid": "plex://season/68f35562133e40c17e34b424",
+    "grandparentGuid": "plex://show/6274f781093e999f383e7197",
+    "grandparentSlug": "the-diplomat-1",
+    "type": "episode",
+    "title": "Redcoats",
+    "grandparentKey": "/library/metadata/642046",
+    "parentKey": "/library/metadata/724204",
+    "grandparentTitle": "The Diplomat",
+    "parentTitle": "Season 4",
+    "contentRating": "TV-MA",
+    "summary": "A shocking security breach sends the administration into crisis as Hal assumes new duties. Trowbridge launches a manhunt, and Kate looks to the future.",
+    "index": 2,
+    "parentIndex": 4,
+    "viewCount": 1,
+    "lastViewedAt": 1792182132,
+    "year": 2026,
+    "thumb": "/library/metadata/724206/thumb/1792200404",
+    "art": "/library/metadata/642046/art/1792200530",
+    "parentThumb": "/library/metadata/724204/thumb/1792200404",
+    "grandparentThumb": "/library/metadata/642046/thumb/1792200530",
+    "grandparentArt": "/library/metadata/642046/art/1792200530",
+    "grandparentTheme": "/library/metadata/642046/theme/1792200530",
+    "duration": 2553550,
+    "originallyAvailableAt": "2026-10-15",
+    "addedAt": 1792049761,
+    "updatedAt": 1792200404,
+    "chapterSource": "media",
+    "loudnessAnalysisVersion": "0.02",
+    "Media": [
+     {
+      "id": 914431,
+      "duration": 2553550,
+      "bitrate": 5278,
+      "width": 1920,
+      "height": 1080,
+      "aspectRatio": 1.78,
+      "audioChannels": 6,
+      "audioCodec": "eac3",
+      "videoCodec": "h264",
+      "videoResolution": "1080",
+      "container": "mkv",
+      "videoFrameRate": "24p",
+      "audioProfile": "dolby digital plus + dolby atmos",
+      "videoProfile": "main",
+      "hasVoiceActivity": true,
+      "Part": [
+       {
+        "id": 1047365,
+        "key": "/library/parts/1047365/1792049715/file.mkv",
+        "duration": 2553550,
+        "file": "/media/tv/The Diplomat (2023) {imdb-tt17491088}/Season 04/The Diplomat US (2023) - S04E02 - TBA [NF][WEBDL-1080p][EAC3 Atmos 5.1][x264]-FLUX.mkv",
+        "size": 1686376452,
+        "audioProfile": "dolby digital plus + dolby atmos",
+        "container": "mkv",
+        "indexes": "sd",
+        "videoProfile": "main"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "Redcoats",
+      "type": "coverPoster",
+      "url": "/library/metadata/642046/thumb/1792200530"
+     },
+     {
+      "alt": "Redcoats",
+      "type": "snapshot",
+      "url": "/library/metadata/724206/thumb/1792200404"
+     },
+     {
+      "alt": "Redcoats",
+      "type": "background",
+      "url": "/library/metadata/642046/art/1792200530"
+     },
+     {
+      "alt": "Redcoats",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/642046/squareArt/1792200530"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "191d1d",
+     "topRight": "3b4441",
+     "bottomRight": "051522",
+     "bottomLeft": "030c1b"
+    },
+    "Director": [
+     {
+      "tag": "Alex Graves"
+     }
+    ],
+    "Writer": [
+     {
+      "tag": "Debora Cahn"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Keri Russell"
+     },
+     {
+      "tag": "Rufus Sewell"
+     },
+     {
+      "tag": "David Gyasi"
+     }
+    ]
+   },
+   {
+    "ratingKey": "724207",
+    "key": "/library/metadata/724207",
+    "parentRatingKey": "724204",
+    "grandparentRatingKey": "642046",
+    "guid": "plex://episode/6a859cf77f10b79f800c6f41",
+    "parentGuid": "plex://season/68f35562133e40c17e34b424",
+    "grandparentGuid": "plex://show/6274f781093e999f383e7197",
+    "grandparentSlug": "the-diplomat-1",
+    "type": "episode",
+    "title": "The Typo",
+    "titleSort": "Typo",
+    "grandparentKey": "/library/metadata/642046",
+    "parentKey": "/library/metadata/724204",
+    "grandparentTitle": "The Diplomat",
+    "parentTitle": "Season 4",
+    "contentRating": "TV-MA",
+    "summary": "A budgetary snag threatens to torpedo negotiations, with costly implications for the US. Stuart and Eidra get personal as they weigh their next move.",
+    "index": 3,
+    "parentIndex": 4,
+    "viewCount": 1,
+    "lastViewedAt": 1792185180,
+    "year": 2026,
+    "thumb": "/library/metadata/724207/thumb/1792200404",
+    "art": "/library/metadata/642046/art/1792200530",
+    "parentThumb": "/library/metadata/724204/thumb/1792200404",
+    "grandparentThumb": "/library/metadata/642046/thumb/1792200530",
+    "grandparentArt": "/library/metadata/642046/art/1792200530",
+    "grandparentTheme": "/library/metadata/642046/theme/1792200530",
+    "duration": 3443147,
+    "originallyAvailableAt": "2026-10-15",
+    "addedAt": 1792049761,
+    "updatedAt": 1792200404,
+    "chapterSource": "media",
+    "loudnessAnalysisVersion": "0.02",
+    "Media": [
+     {
+      "id": 914432,
+      "duration": 3443147,
+      "bitrate": 5410,
+      "width": 1920,
+      "height": 1080,
+      "aspectRatio": 1.78,
+      "audioChannels": 6,
+      "audioCodec": "eac3",
+      "videoCodec": "h264",
+      "videoResolution": "1080",
+      "container": "mkv",
+      "videoFrameRate": "24p",
+      "audioProfile": "dolby digital plus + dolby atmos",
+      "videoProfile": "main",
+      "hasVoiceActivity": true,
+      "Part": [
+       {
+        "id": 1047366,
+        "key": "/library/parts/1047366/1792049721/file.mkv",
+        "duration": 3443147,
+        "file": "/media/tv/The Diplomat (2023) {imdb-tt17491088}/Season 04/The Diplomat US (2023) - S04E03 - TBA [NF][WEBDL-1080p][EAC3 Atmos 5.1][x264]-FLUX.mkv",
+        "size": 2330323823,
+        "audioProfile": "dolby digital plus + dolby atmos",
+        "container": "mkv",
+        "indexes": "sd",
+        "videoProfile": "main"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "The Typo",
+      "type": "coverPoster",
+      "url": "/library/metadata/642046/thumb/1792200530"
+     },
+     {
+      "alt": "The Typo",
+      "type": "snapshot",
+      "url": "/library/metadata/724207/thumb/1792200404"
+     },
+     {
+      "alt": "The Typo",
+      "type": "background",
+      "url": "/library/metadata/642046/art/1792200530"
+     },
+     {
+      "alt": "The Typo",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/642046/squareArt/1792200530"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "111113",
+     "topRight": "0e1417",
+     "bottomRight": "1a1f27",
+     "bottomLeft": "2b0d0e"
+    },
+    "Director": [
+     {
+      "tag": "Liza Johnson"
+     }
+    ],
+    "Writer": [
+     {
+      "tag": "Jessica Brickman"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Keri Russell"
+     },
+     {
+      "tag": "Rufus Sewell"
+     },
+     {
+      "tag": "David Gyasi"
+     }
+    ]
+   },
+   {
+    "ratingKey": "724212",
+    "key": "/library/metadata/724212",
+    "parentRatingKey": "724204",
+    "grandparentRatingKey": "642046",
+    "guid": "plex://episode/6a859cf77f10b79f800c6f38",
+    "parentGuid": "plex://season/68f35562133e40c17e34b424",
+    "grandparentGuid": "plex://show/6274f781093e999f383e7197",
+    "grandparentSlug": "the-diplomat-1",
+    "type": "episode",
+    "title": "Pagliacci",
+    "grandparentKey": "/library/metadata/642046",
+    "parentKey": "/library/metadata/724204",
+    "grandparentTitle": "The Diplomat",
+    "parentTitle": "Season 4",
+    "contentRating": "TV-MA",
+    "summary": "After Hal drops a bombshell that throws the UK alliance into jeopardy, Kate faces mounting pressure to control the damage by any means necessary.",
+    "index": 4,
+    "parentIndex": 4,
+    "viewCount": 1,
+    "lastViewedAt": 1792264649,
+    "year": 2026,
+    "thumb": "/library/metadata/724212/thumb/1792200404",
+    "art": "/library/metadata/642046/art/1792200530",
+    "parentThumb": "/library/metadata/724204/thumb/1792200404",
+    "grandparentThumb": "/library/metadata/642046/thumb/1792200530",
+    "grandparentArt": "/library/metadata/642046/art/1792200530",
+    "grandparentTheme": "/library/metadata/642046/theme/1792200530",
+    "duration": 3148436,
+    "originallyAvailableAt": "2026-10-15",
+    "addedAt": 1792057320,
+    "updatedAt": 1792200404,
+    "chapterSource": "media",
+    "loudnessAnalysisVersion": "0.02",
+    "Media": [
+     {
+      "id": 914454,
+      "duration": 3148436,
+      "bitrate": 5367,
+      "width": 1920,
+      "height": 1080,
+      "aspectRatio": 1.78,
+      "audioChannels": 6,
+      "audioCodec": "eac3",
+      "videoCodec": "h264",
+      "videoResolution": "1080",
+      "container": "mkv",
+      "videoFrameRate": "24p",
+      "audioProfile": "dolby digital plus + dolby atmos",
+      "videoProfile": "main",
+      "hasVoiceActivity": true,
+      "Part": [
+       {
+        "id": 1047388,
+        "key": "/library/parts/1047388/1792049725/file.mkv",
+        "duration": 3148436,
+        "file": "/media/tv/The Diplomat (2023) {imdb-tt17491088}/Season 04/The Diplomat US (2023) - S04E04 - Pagliacci [NF][WEBDL-1080p][EAC3 Atmos 5.1][x264]-FLUX.mkv",
+        "size": 2113878981,
+        "audioProfile": "dolby digital plus + dolby atmos",
+        "container": "mkv",
+        "indexes": "sd",
+        "videoProfile": "main"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "Pagliacci",
+      "type": "coverPoster",
+      "url": "/library/metadata/642046/thumb/1792200530"
+     },
+     {
+      "alt": "Pagliacci",
+      "type": "snapshot",
+      "url": "/library/metadata/724212/thumb/1792200404"
+     },
+     {
+      "alt": "Pagliacci",
+      "type": "background",
+      "url": "/library/metadata/642046/art/1792200530"
+     },
+     {
+      "alt": "Pagliacci",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/642046/squareArt/1792200530"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "4c1b22",
+     "topRight": "2f2d33",
+     "bottomRight": "454545",
+     "bottomLeft": "2b3031"
+    },
+    "Director": [
+     {
+      "tag": "Liza Johnson"
+     }
+    ],
+    "Writer": [
+     {
+      "tag": "Peter Noah"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Keri Russell"
+     },
+     {
+      "tag": "Rufus Sewell"
+     },
+     {
+      "tag": "David Gyasi"
+     }
+    ]
+   },
+   {
+    "ratingKey": "724208",
+    "key": "/library/metadata/724208",
+    "parentRatingKey": "724204",
+    "grandparentRatingKey": "642046",
+    "guid": "plex://episode/6a859cf77f10b79f800c6f2f",
+    "parentGuid": "plex://season/68f35562133e40c17e34b424",
+    "grandparentGuid": "plex://show/6274f781093e999f383e7197",
+    "grandparentSlug": "the-diplomat-1",
+    "type": "episode",
+    "title": "Special Envoy",
+    "grandparentKey": "/library/metadata/642046",
+    "parentKey": "/library/metadata/724204",
+    "grandparentTitle": "The Diplomat",
+    "parentTitle": "Season 4",
+    "contentRating": "TV-MA",
+    "summary": "Kate contends with her complicity in a stunning political shake-up, while a disenchanted Todd explores his options across the pond.",
+    "index": 5,
+    "parentIndex": 4,
+    "viewCount": 1,
+    "lastViewedAt": 1792267581,
+    "year": 2026,
+    "thumb": "/library/metadata/724208/thumb/1792200404",
+    "art": "/library/metadata/642046/art/1792200530",
+    "parentThumb": "/library/metadata/724204/thumb/1792200404",
+    "grandparentThumb": "/library/metadata/642046/thumb/1792200530",
+    "grandparentArt": "/library/metadata/642046/art/1792200530",
+    "grandparentTheme": "/library/metadata/642046/theme/1792200530",
+    "duration": 3201698,
+    "originallyAvailableAt": "2026-10-15",
+    "addedAt": 1792049761,
+    "updatedAt": 1792200404,
+    "chapterSource": "media",
+    "loudnessAnalysisVersion": "0.02",
+    "Media": [
+     {
+      "id": 914433,
+      "duration": 3201698,
+      "bitrate": 5403,
+      "width": 1920,
+      "height": 1080,
+      "aspectRatio": 1.78,
+      "audioChannels": 6,
+      "audioCodec": "eac3",
+      "videoCodec": "h264",
+      "videoResolution": "1080",
+      "container": "mkv",
+      "videoFrameRate": "24p",
+      "audioProfile": "dolby digital plus + dolby atmos",
+      "videoProfile": "main",
+      "hasVoiceActivity": true,
+      "Part": [
+       {
+        "id": 1047367,
+        "key": "/library/parts/1047367/1792049729/file.mkv",
+        "duration": 3201698,
+        "file": "/media/tv/The Diplomat (2023) {imdb-tt17491088}/Season 04/The Diplomat US (2023) - S04E05 - TBA [NF][WEBDL-1080p][EAC3 Atmos 5.1][x264]-FLUX.mkv",
+        "size": 2164416273,
+        "audioProfile": "dolby digital plus + dolby atmos",
+        "container": "mkv",
+        "indexes": "sd",
+        "videoProfile": "main"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "Special Envoy",
+      "type": "coverPoster",
+      "url": "/library/metadata/642046/thumb/1792200530"
+     },
+     {
+      "alt": "Special Envoy",
+      "type": "snapshot",
+      "url": "/library/metadata/724208/thumb/1792200404"
+     },
+     {
+      "alt": "Special Envoy",
+      "type": "background",
+      "url": "/library/metadata/642046/art/1792200530"
+     },
+     {
+      "alt": "Special Envoy",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/642046/squareArt/1792200530"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "2e1309",
+     "topRight": "1b0d03",
+     "bottomRight": "2c1408",
+     "bottomLeft": "3b1f0e"
+    },
+    "Director": [
+     {
+      "tag": "Tucker Gates"
+     }
+    ],
+    "Writer": [
+     {
+      "tag": "Eli Attie"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Keri Russell"
+     },
+     {
+      "tag": "Rufus Sewell"
+     },
+     {
+      "tag": "David Gyasi"
+     }
+    ]
+   },
+   {
+    "ratingKey": "724209",
+    "key": "/library/metadata/724209",
+    "parentRatingKey": "724204",
+    "grandparentRatingKey": "642046",
+    "guid": "plex://episode/6a859cf77f10b79f800c6f26",
+    "parentGuid": "plex://season/68f35562133e40c17e34b424",
+    "grandparentGuid": "plex://show/6274f781093e999f383e7197",
+    "grandparentSlug": "the-diplomat-1",
+    "type": "episode",
+    "title": "The Dead",
+    "titleSort": "Dead",
+    "grandparentKey": "/library/metadata/642046",
+    "parentKey": "/library/metadata/724204",
+    "grandparentTitle": "The Diplomat",
+    "parentTitle": "Season 4",
+    "contentRating": "TV-MA",
+    "summary": "When a dangerous adversary makes its move, Grace issues a hard-line threat to the prime minister, forcing Kate to reckon with her role as the messenger.",
+    "index": 6,
+    "parentIndex": 4,
+    "viewCount": 1,
+    "lastViewedAt": 1792270528,
+    "year": 2026,
+    "thumb": "/library/metadata/724209/thumb/1792200404",
+    "art": "/library/metadata/642046/art/1792200530",
+    "parentThumb": "/library/metadata/724204/thumb/1792200404",
+    "grandparentThumb": "/library/metadata/642046/thumb/1792200530",
+    "grandparentArt": "/library/metadata/642046/art/1792200530",
+    "grandparentTheme": "/library/metadata/642046/theme/1792200530",
+    "duration": 3186641,
+    "originallyAvailableAt": "2026-10-15",
+    "addedAt": 1792049761,
+    "updatedAt": 1792200404,
+    "chapterSource": "media",
+    "loudnessAnalysisVersion": "0.02",
+    "Media": [
+     {
+      "id": 914434,
+      "duration": 3186641,
+      "bitrate": 5396,
+      "width": 1920,
+      "height": 1080,
+      "aspectRatio": 1.78,
+      "audioChannels": 6,
+      "audioCodec": "eac3",
+      "videoCodec": "h264",
+      "videoResolution": "1080",
+      "container": "mkv",
+      "videoFrameRate": "24p",
+      "audioProfile": "dolby digital plus + dolby atmos",
+      "videoProfile": "main",
+      "hasVoiceActivity": true,
+      "Part": [
+       {
+        "id": 1047368,
+        "key": "/library/parts/1047368/1792049732/file.mkv",
+        "duration": 3186641,
+        "file": "/media/tv/The Diplomat (2023) {imdb-tt17491088}/Season 04/The Diplomat US (2023) - S04E06 - TBA [NF][WEBDL-1080p][EAC3 Atmos 5.1][x264]-FLUX.mkv",
+        "size": 2151123288,
+        "audioProfile": "dolby digital plus + dolby atmos",
+        "container": "mkv",
+        "indexes": "sd",
+        "videoProfile": "main"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "The Dead",
+      "type": "coverPoster",
+      "url": "/library/metadata/642046/thumb/1792200530"
+     },
+     {
+      "alt": "The Dead",
+      "type": "snapshot",
+      "url": "/library/metadata/724209/thumb/1792200404"
+     },
+     {
+      "alt": "The Dead",
+      "type": "background",
+      "url": "/library/metadata/642046/art/1792200530"
+     },
+     {
+      "alt": "The Dead",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/642046/squareArt/1792200530"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "1e1815",
+     "topRight": "644e23",
+     "bottomRight": "7e531b",
+     "bottomLeft": "03030f"
+    },
+    "Director": [
+     {
+      "tag": "Tucker Gates"
+     }
+    ],
+    "Writer": [
+     {
+      "tag": "Julianna Dudley Meagher"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Keri Russell"
+     },
+     {
+      "tag": "Rufus Sewell"
+     },
+     {
+      "tag": "David Gyasi"
+     }
+    ]
+   },
+   {
+    "ratingKey": "724210",
+    "key": "/library/metadata/724210",
+    "parentRatingKey": "724204",
+    "grandparentRatingKey": "642046",
+    "guid": "plex://episode/6a859cf77f10b79f800c6f1d",
+    "parentGuid": "plex://season/68f35562133e40c17e34b424",
+    "grandparentGuid": "plex://show/6274f781093e999f383e7197",
+    "grandparentSlug": "the-diplomat-1",
+    "type": "episode",
+    "title": "Phony Negroni",
+    "grandparentKey": "/library/metadata/642046",
+    "parentKey": "/library/metadata/724204",
+    "grandparentTitle": "The Diplomat",
+    "parentTitle": "Season 4",
+    "contentRating": "TV-MA",
+    "summary": "Personal and political lives collide \u2014 and damaging secrets surface \u2014 when Kate and Hal join Grace and Todd in Italy ahead of the G7 summit.",
+    "index": 7,
+    "parentIndex": 4,
+    "viewCount": 1,
+    "lastViewedAt": 1792352248,
+    "year": 2026,
+    "thumb": "/library/metadata/724210/thumb/1792200404",
+    "art": "/library/metadata/642046/art/1792200530",
+    "parentThumb": "/library/metadata/724204/thumb/1792200404",
+    "grandparentThumb": "/library/metadata/642046/thumb/1792200530",
+    "grandparentArt": "/library/metadata/642046/art/1792200530",
+    "grandparentTheme": "/library/metadata/642046/theme/1792200530",
+    "duration": 3165453,
+    "originallyAvailableAt": "2026-10-15",
+    "addedAt": 1792049761,
+    "updatedAt": 1792200404,
+    "chapterSource": "media",
+    "loudnessAnalysisVersion": "0.02",
+    "Media": [
+     {
+      "id": 914435,
+      "duration": 3165453,
+      "bitrate": 5453,
+      "width": 1920,
+      "height": 1080,
+      "aspectRatio": 1.78,
+      "audioChannels": 6,
+      "audioCodec": "eac3",
+      "videoCodec": "h264",
+      "videoResolution": "1080",
+      "container": "mkv",
+      "videoFrameRate": "24p",
+      "audioProfile": "dolby digital plus + dolby atmos",
+      "videoProfile": "main",
+      "hasVoiceActivity": true,
+      "Part": [
+       {
+        "id": 1047369,
+        "key": "/library/parts/1047369/1792049736/file.mkv",
+        "duration": 3165453,
+        "file": "/media/tv/The Diplomat (2023) {imdb-tt17491088}/Season 04/The Diplomat US (2023) - S04E07 - TBA [NF][WEBDL-1080p][EAC3 Atmos 5.1][x264]-FLUX.mkv",
+        "size": 2159845649,
+        "audioProfile": "dolby digital plus + dolby atmos",
+        "container": "mkv",
+        "indexes": "sd",
+        "videoProfile": "main"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "Phony Negroni",
+      "type": "coverPoster",
+      "url": "/library/metadata/642046/thumb/1792200530"
+     },
+     {
+      "alt": "Phony Negroni",
+      "type": "snapshot",
+      "url": "/library/metadata/724210/thumb/1792200404"
+     },
+     {
+      "alt": "Phony Negroni",
+      "type": "background",
+      "url": "/library/metadata/642046/art/1792200530"
+     },
+     {
+      "alt": "Phony Negroni",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/642046/squareArt/1792200530"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "303011",
+     "topRight": "3c443c",
+     "bottomRight": "3b220e",
+     "bottomLeft": "030310"
+    },
+    "Director": [
+     {
+      "tag": "Alex Graves"
+     }
+    ],
+    "Writer": [
+     {
+      "tag": "Anna Hagen"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Keri Russell"
+     },
+     {
+      "tag": "Rufus Sewell"
+     },
+     {
+      "tag": "David Gyasi"
+     }
+    ]
+   },
+   {
+    "ratingKey": "724211",
+    "key": "/library/metadata/724211",
+    "parentRatingKey": "724204",
+    "grandparentRatingKey": "642046",
+    "guid": "plex://episode/6a859cf67f10b79f800c6f14",
+    "parentGuid": "plex://season/68f35562133e40c17e34b424",
+    "grandparentGuid": "plex://show/6274f781093e999f383e7197",
+    "grandparentSlug": "the-diplomat-1",
+    "type": "episode",
+    "title": "Warships",
+    "grandparentKey": "/library/metadata/642046",
+    "parentKey": "/library/metadata/724204",
+    "grandparentTitle": "The Diplomat",
+    "parentTitle": "Season 4",
+    "contentRating": "TV-MA",
+    "summary": "At a meeting of world leaders, a diplomatic breakdown edges the US closer to an international crisis \u2014 and compels Kate to make a seismic decision.",
+    "index": 8,
+    "parentIndex": 4,
+    "viewCount": 1,
+    "lastViewedAt": 1792355704,
+    "year": 2026,
+    "thumb": "/library/metadata/724211/thumb/1792200404",
+    "art": "/library/metadata/642046/art/1792200530",
+    "parentThumb": "/library/metadata/724204/thumb/1792200404",
+    "grandparentThumb": "/library/metadata/642046/thumb/1792200530",
+    "grandparentArt": "/library/metadata/642046/art/1792200530",
+    "grandparentTheme": "/library/metadata/642046/theme/1792200530",
+    "duration": 3632253,
+    "originallyAvailableAt": "2026-10-15",
+    "addedAt": 1792049761,
+    "updatedAt": 1792200404,
+    "chapterSource": "media",
+    "loudnessAnalysisVersion": "0.02",
+    "Media": [
+     {
+      "id": 914436,
+      "duration": 3632253,
+      "bitrate": 5492,
+      "width": 1920,
+      "height": 1080,
+      "aspectRatio": 1.78,
+      "audioChannels": 6,
+      "audioCodec": "eac3",
+      "videoCodec": "h264",
+      "videoResolution": "1080",
+      "container": "mkv",
+      "videoFrameRate": "24p",
+      "audioProfile": "dolby digital plus + dolby atmos",
+      "videoProfile": "main",
+      "hasVoiceActivity": true,
+      "Part": [
+       {
+        "id": 1047370,
+        "key": "/library/parts/1047370/1792049741/file.mkv",
+        "duration": 3632253,
+        "file": "/media/tv/The Diplomat (2023) {imdb-tt17491088}/Season 04/The Diplomat US (2023) - S04E08 - TBA [NF][WEBDL-1080p][EAC3 Atmos 5.1][x264]-FLUX.mkv",
+        "size": 2495501237,
+        "audioProfile": "dolby digital plus + dolby atmos",
+        "container": "mkv",
+        "indexes": "sd",
+        "videoProfile": "main"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "Warships",
+      "type": "coverPoster",
+      "url": "/library/metadata/642046/thumb/1792200530"
+     },
+     {
+      "alt": "Warships",
+      "type": "snapshot",
+      "url": "/library/metadata/724211/thumb/1792200404"
+     },
+     {
+      "alt": "Warships",
+      "type": "background",
+      "url": "/library/metadata/642046/art/1792200530"
+     },
+     {
+      "alt": "Warships",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/642046/squareArt/1792200530"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "3f170b",
+     "topRight": "2c230b",
+     "bottomRight": "191903",
+     "bottomLeft": "411104"
+    },
+    "Director": [
+     {
+      "tag": "Alex Graves"
+     }
+    ],
+    "Writer": [
+     {
+      "tag": "Debora Cahn"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Keri Russell"
+     },
+     {
+      "tag": "Rufus Sewell"
+     },
+     {
+      "tag": "David Gyasi"
+     }
+    ]
+   },
+   {
+    "ratingKey": "724218",
+    "key": "/library/metadata/724218",
+    "parentRatingKey": "724217",
+    "grandparentRatingKey": "647730",
+    "guid": "plex://episode/6a68a0ac1186b53dbd99a8f1",
+    "parentGuid": "plex://season/6a8cdec4fb69dfcf5cd921a4",
+    "grandparentGuid": "plex://show/5d9c086c02391c001f5891bb",
+    "grandparentSlug": "greys-anatomy",
+    "type": "episode",
+    "title": "Collide",
+    "grandparentKey": "/library/metadata/647730",
+    "parentKey": "/library/metadata/724217",
+    "grandparentTitle": "Grey's Anatomy",
+    "parentTitle": "Season 23",
+    "contentRating": "TV-14",
+    "summary": "After a collision at Sea-Tac sends a surge of critically injured patients to Grey Sloan, the unveiling of its controversial new VIP floor is thrown into chaos as doctors race to save lives amid impossible choices.",
+    "index": 1,
+    "parentIndex": 23,
+    "audienceRating": 10.0,
+    "year": 2026,
+    "thumb": "/library/metadata/724218/thumb/1792289582",
+    "art": "/library/metadata/647730/art/1792200536",
+    "parentThumb": "/library/metadata/724217/thumb/1792110061",
+    "grandparentThumb": "/library/metadata/647730/thumb/1792200536",
+    "grandparentArt": "/library/metadata/647730/art/1792200536",
+    "grandparentTheme": "/library/metadata/647730/theme/1792200536",
+    "duration": 2585500,
+    "originallyAvailableAt": "2026-10-15",
+    "addedAt": 1792110060,
+    "updatedAt": 1792289582,
+    "audienceRatingImage": "themoviedb://image.rating",
+    "chapterSource": "media",
+    "loudnessAnalysisVersion": "0.02",
+    "Media": [
+     {
+      "id": 914579,
+      "duration": 2585500,
+      "bitrate": 5958,
+      "width": 1920,
+      "height": 1080,
+      "aspectRatio": 1.78,
+      "audioChannels": 6,
+      "audioCodec": "eac3",
+      "videoCodec": "h264",
+      "videoResolution": "1080",
+      "container": "mkv",
+      "videoFrameRate": "24p",
+      "videoProfile": "high",
+      "hasVoiceActivity": true,
+      "Part": [
+       {
+        "id": 1047514,
+        "key": "/library/parts/1047514/1792289562/file.mkv",
+        "duration": 2585500,
+        "file": "/media/tv/Grey's Anatomy (2005) {imdb-tt0413573}/Season 23/Greys Anatomy (2005) - S23E01 - Collide [DSNP][WEBDL-1080p][EAC3 5.1][h264]-NTb.mkv",
+        "size": 1925515969,
+        "container": "mkv",
+        "indexes": "sd",
+        "videoProfile": "high"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "Collide",
+      "type": "coverPoster",
+      "url": "/library/metadata/647730/thumb/1792200536"
+     },
+     {
+      "alt": "Collide",
+      "type": "snapshot",
+      "url": "/library/metadata/724218/thumb/1792289582"
+     },
+     {
+      "alt": "Collide",
+      "type": "background",
+      "url": "/library/metadata/647730/art/1792200536"
+     },
+     {
+      "alt": "Collide",
+      "type": "clearLogo",
+      "url": "/library/metadata/647730/clearLogo/1792200536"
+     },
+     {
+      "alt": "Collide",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/647730/squareArt/1792200536"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "192c52",
+     "topRight": "252225",
+     "bottomRight": "222530",
+     "bottomLeft": "24667f"
+    },
+    "Role": [
+     {
+      "tag": "Ellen Pompeo"
+     },
+     {
+      "tag": "Chandra Wilson"
+     },
+     {
+      "tag": "James Pickens Jr."
+     }
+    ]
+   }
+  ]
+ }
+}
