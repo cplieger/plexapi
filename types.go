@@ -155,7 +155,7 @@ func (r RatingKey) Validate() error {
 // / TranscodeSession, a metadata fetch adds the Media→Part→Stream graph.
 //
 // LastViewedAt and ViewCount are the token's account's watch state, nil
-// when absent; an AddedAt <= 0 is unknown.
+// when absent; AddedAt and UpdatedAt are Unix seconds, <= 0 when unknown.
 type Item struct {
 	LastViewedAt         *FlexInt64        `json:"lastViewedAt,omitempty"`
 	ViewCount            *FlexInt          `json:"viewCount,omitempty"`
@@ -179,6 +179,7 @@ type Item struct {
 	Media                []Media           `json:"Media"`
 	Label                []Label           `json:"Label"`
 	AddedAt              int64             `json:"addedAt"`
+	UpdatedAt            int64             `json:"updatedAt"`
 	ViewedAt             int64             `json:"viewedAt"`
 	Year                 int               `json:"year"`
 	Index                FlexInt           `json:"index"`
@@ -220,12 +221,14 @@ type Media struct {
 	Bitrate         int     `json:"bitrate"`
 }
 
-// Part is one file of a Media, wrapping its streams. Decision is populated
-// on session responses (the transcoder's per-part verdict). ID is FlexInt
-// for the reason given on Media. Size is the file size in bytes: nil when
-// absent or null, non-nil 0 when Plex sends 0.
+// Part is one file of a Media, wrapping its streams. File is the file's
+// path as the server sees it. Decision is populated on session responses
+// (the transcoder's per-part verdict). ID is FlexInt for the reason given on
+// Media. Size is the file size in bytes: nil when absent or null, non-nil 0
+// when Plex sends 0.
 type Part struct {
 	Size     *FlexInt64 `json:"size,omitempty"`
+	File     string     `json:"file"`
 	Decision string     `json:"decision"`
 	Stream   []Stream   `json:"Stream"`
 	ID       FlexInt    `json:"id"`
@@ -243,8 +246,11 @@ const (
 )
 
 // Stream is a single video/audio/subtitle stream on a Part. ID is FlexInt for
-// the reason given on Media.
+// the reason given on Media. Key is "/library/streams/<id>" for a stream
+// read from a sidecar file and empty for a track inside the media file;
+// Plex names no sidecar's path.
 type Stream struct {
+	Key                  string     `json:"key"`
 	LanguageCode         string     `json:"languageCode"`
 	LanguageTag          string     `json:"languageTag"`
 	DisplayTitle         string     `json:"displayTitle"`
@@ -325,7 +331,9 @@ const (
 	SectionTypeShow  = "show"
 	// TypeEpisode is the metadata "type" string on episode items.
 	TypeEpisode = "episode"
-	// MetadataTypeEpisode is the numeric type ID for ?type= filters.
+	// MetadataTypeMovie and MetadataTypeEpisode are the numeric type IDs
+	// for ?type= filters.
+	MetadataTypeMovie   = 1
 	MetadataTypeEpisode = 4
 )
 

@@ -21,7 +21,7 @@ type warnRecorder struct {
 	msgs []string
 }
 
-func (r *warnRecorder) Enabled(context.Context, slog.Level) bool { return true }
+func (*warnRecorder) Enabled(context.Context, slog.Level) bool { return true }
 func (r *warnRecorder) Handle(_ context.Context, rec slog.Record) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -2,9 +2,11 @@ package plexapi
 
 import (
 	"encoding/pem"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -144,6 +146,12 @@ func TestBuilderCapClasses(t *testing.T) {
 	}
 	requireListPath(recent)
 
+	updated, err := UpdatedSincePath("1", MetadataTypeEpisode, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requireListPath(updated)
+
 	meta, err := MetadataPath("1")
 	if err != nil {
 		t.Fatal(err)
@@ -173,6 +181,66 @@ func TestBuilderCapClasses(t *testing.T) {
 		t.Fatal(err)
 	}
 	requirePath(history) // the same tripwire as HistoryPath
+}
+
+func TestUpdatedSincePathValidates(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		got, err := UpdatedSincePath("3", MetadataTypeEpisode, 1792199733)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := ListPath("/library/sections/3/all?type=4&sort=updatedAt:asc&updatedAt>=1792199733"); got != want {
+			t.Errorf("path = %q, want %q", got, want)
+		}
+		movies, err := UpdatedSincePath("1", MetadataTypeMovie, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := ListPath("/library/sections/1/all?type=1&sort=updatedAt:asc&updatedAt>=0"); movies != want {
+			t.Errorf("path = %q, want %q", movies, want)
+		}
+	})
+
+	var requests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		_, _ = w.Write([]byte(`{"MediaContainer":{"totalSize":0,"Metadata":[]}}`))
+	}))
+	t.Cleanup(srv.Close)
+	c := newTestClient(t, srv)
+
+	tests := []struct {
+		name         string
+		section      RatingKey
+		metadataType int
+		since        int64
+		wantErr      string
+	}{
+		{name: "empty section", section: "", metadataType: MetadataTypeEpisode, since: 0, wantErr: RatingKey("").Validate().Error()},
+		{name: "path in section", section: "3/../1", metadataType: MetadataTypeEpisode, since: 0, wantErr: RatingKey("3/../1").Validate().Error()},
+		{name: "query in section", section: "3?type=2", metadataType: MetadataTypeMovie, since: 0, wantErr: RatingKey("3?type=2").Validate().Error()},
+		{name: "unfiltered type", section: "3", metadataType: 0, since: 0, wantErr: "metadata type 0"},
+		{name: "show type", section: "3", metadataType: 2, since: 0, wantErr: "metadata type 2"},
+		{name: "season type", section: "3", metadataType: 3, since: 0, wantErr: "metadata type 3"},
+		{name: "negative type", section: "3", metadataType: -4, since: 0, wantErr: "metadata type -4"},
+		{name: "negative bound", section: "3", metadataType: MetadataTypeEpisode, since: -1, wantErr: "bound -1"},
+		{name: "min bound", section: "3", metadataType: MetadataTypeMovie, since: math.MinInt64, wantErr: "bound -9223372036854775808"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if p, err := UpdatedSincePath(tt.section, tt.metadataType, tt.since); err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("UpdatedSincePath = %q, %v, want an error naming %q", p, err, tt.wantErr)
+			}
+			before := requests.Load()
+			_, errs := collectItems(c.UpdatedSince(t.Context(), tt.section, tt.metadataType, tt.since, 10, nil))
+			if len(errs) != 1 || !strings.Contains(errs[0].Error(), tt.wantErr) {
+				t.Errorf("UpdatedSince errors = %v, want one naming %q", errs, tt.wantErr)
+			}
+			if n := requests.Load() - before; n != 0 {
+				t.Errorf("UpdatedSince sent %d requests, want none", n)
+			}
+		})
+	}
 }
 
 func TestPagePathsRejectBadPage(t *testing.T) {

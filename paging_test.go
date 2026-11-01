@@ -107,6 +107,20 @@ func TestWalkSectionItemsPagesInOrder(t *testing.T) {
 	}
 }
 
+func TestWalkMovieSectionType(t *testing.T) {
+	c, ps := newPageServer(t, listing(2))
+	keys, errs := collectItems(c.WalkSectionItems(t.Context(), "1", MetadataTypeMovie, Page{Size: 5}, nil))
+	if len(errs) != 0 {
+		t.Fatalf("WalkSectionItems errors = %v, want none", errs)
+	}
+	if got, want := strings.Join(keys, ","), "0,1"; got != want {
+		t.Errorf("WalkSectionItems keys = %s, want %s", got, want)
+	}
+	if got, want := ps.recorded(), []string{"X-Plex-Container-Size=5&X-Plex-Container-Start=0&type=1"}; !slices.Equal(got, want) {
+		t.Errorf("RawQuery per page = %q, want %q", got, want)
+	}
+}
+
 // TestWalkSectionItemsOversizedFirstPageComplete pins that a first page
 // holding more rows than asked, and at least its totalSize, ends the walk
 // cleanly after one request.

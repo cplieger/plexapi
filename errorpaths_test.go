@@ -1,10 +1,13 @@
 package plexapi
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/cplieger/httpx/v5"
 )
 
 // Error-path coverage: every typed endpoint must propagate a transport-level
@@ -32,6 +35,7 @@ func TestEndpointsPropagateServerErrors(t *testing.T) {
 		{"SectionItems", func() error { _, err := c.SectionItems(ctx, "1"); return err }},
 		{"RecentlyAdded", func() error { _, err := c.RecentlyAdded(ctx, "1", MetadataTypeEpisode, 0); return err }},
 		{"Metadata", func() error { _, err := c.Metadata(ctx, "1"); return err }},
+		{"RefreshMetadata", func() error { return c.RefreshMetadata(ctx, "1") }},
 		{"Children", func() error { _, err := c.Children(ctx, "1"); return err }},
 		{"AllLeaves", func() error { _, err := c.AllLeaves(ctx, "1"); return err }},
 		{"ItemsByGUID", func() error { _, err := c.ItemsByGUID(ctx, "imdb://tt1"); return err }},
@@ -63,6 +67,7 @@ func TestKeyedEndpointsRejectInvalidKeys(t *testing.T) {
 		call func() error
 	}{
 		{"Metadata", func() error { _, err := c.Metadata(ctx, "abc"); return err }},
+		{"RefreshMetadata", func() error { return c.RefreshMetadata(ctx, "abc") }},
 		{"Children", func() error { _, err := c.Children(ctx, "abc"); return err }},
 		{"AllLeaves", func() error { _, err := c.AllLeaves(ctx, "abc"); return err }},
 		{"RecentlyAdded", func() error { _, err := c.RecentlyAdded(ctx, "abc", 4, 0); return err }},
@@ -76,6 +81,24 @@ func TestKeyedEndpointsRejectInvalidKeys(t *testing.T) {
 				t.Errorf("%s(abc) error = %v, want invalid-rating-key rejection", tc.name, err)
 			}
 		})
+	}
+}
+
+func TestStatusErrorTransient(t *testing.T) {
+	transient := []int{408, 429, 500, 501, 502, 503, 504, 599}
+	permanent := []int{399, 400, 401, 404, 407, 409, 428, 430, 499, 600}
+	for _, tc := range []struct {
+		codes []int
+		want  bool
+	}{{transient, true}, {permanent, false}} {
+		for _, code := range tc.codes {
+			t.Run(fmt.Sprint(code), func(t *testing.T) {
+				err := fmt.Errorf("wrapped: %w", &StatusError{Method: http.MethodGet, Path: "/x", Code: code})
+				if got := httpx.IsTransient(err); got != tc.want {
+					t.Errorf("httpx.IsTransient(StatusError %d) = %v, want %v", code, got, tc.want)
+				}
+			})
+		}
 	}
 }
 
