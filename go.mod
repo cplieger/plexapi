@@ -1,4 +1,4 @@
-module github.com/cplieger/plexapi/v2
+module github.com/cplieger/plexapi/v3
 
 go 1.27.3
 

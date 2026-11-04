@@ -1,6 +1,6 @@
 # plexapi
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/cplieger/plexapi/v2.svg)](https://pkg.go.dev/github.com/cplieger/plexapi/v2) [![Go version](https://img.shields.io/github/go-mod/go-version/cplieger/plexapi)](https://github.com/cplieger/plexapi/blob/main/go.mod)
+[![Go Reference](https://pkg.go.dev/badge/github.com/cplieger/plexapi/v3.svg)](https://pkg.go.dev/github.com/cplieger/plexapi/v3) [![Go version](https://img.shields.io/github/go-mod/go-version/cplieger/plexapi)](https://github.com/cplieger/plexapi/blob/main/go.mod)
 
 plexapi lets your Go tool read a Plex Media Server and set each user's audio and subtitle tracks. Its built-in transport keeps the X-Plex-Token on that server.
 
@@ -22,7 +22,7 @@ Consider [go-plex-client](https://github.com/jrudio/go-plex-client) if your tool
 ## Install
 
 ```sh
-go get github.com/cplieger/plexapi/v2@latest
+go get github.com/cplieger/plexapi/v3@latest
 ```
 
 ## Usage
@@ -83,7 +83,7 @@ client, err := plexapi.New(serverURL, plexapi.Token(token), plexapi.WithCACertPE
 - To decode into your own types, pass a path builder such as `MetadataPath` to `FetchMetadata`, `FetchMetadataList` or `FetchDirectory`. `Get` calls any endpoint no typed call covers.
 - Errors are `ErrNotFound`, `*StatusError` with `IsTransient`, `*ResponseTooLargeError`, `IsNotFound` and `IsConfigError`.
 
-The full reference is on [pkg.go.dev](https://pkg.go.dev/github.com/cplieger/plexapi/v2). [How plexapi works](docs/how-it-works.md) explains each group's behavior.
+The full reference is on [pkg.go.dev](https://pkg.go.dev/github.com/cplieger/plexapi/v3). [How plexapi works](docs/how-it-works.md) explains each group's behavior.
 
 ## How it protects the token
 
