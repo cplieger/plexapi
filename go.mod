@@ -4,5 +4,5 @@ go 1.27.3
 
 require (
 	github.com/cplieger/go/httpclient v1.0.0-dev.2
-	github.com/cplieger/go/xmlx v1.0.0-dev.1
+	github.com/cplieger/go/xmlx v1.0.0-dev.2
 )
