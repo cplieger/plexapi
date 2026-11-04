@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cplieger/httpx/v5"
+	"github.com/cplieger/go/httpclient"
 )
 
 // Error-path coverage: every typed endpoint must propagate a transport-level
@@ -94,8 +94,8 @@ func TestStatusErrorTransient(t *testing.T) {
 		for _, code := range tc.codes {
 			t.Run(fmt.Sprint(code), func(t *testing.T) {
 				err := fmt.Errorf("wrapped: %w", &StatusError{Method: http.MethodGet, Path: "/x", Code: code})
-				if got := httpx.IsTransient(err); got != tc.want {
-					t.Errorf("httpx.IsTransient(StatusError %d) = %v, want %v", code, got, tc.want)
+				if got := httpclient.IsTransient(err); got != tc.want {
+					t.Errorf("httpclient.IsTransient(StatusError %d) = %v, want %v", code, got, tc.want)
 				}
 			})
 		}

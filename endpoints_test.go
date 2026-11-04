@@ -19,7 +19,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/cplieger/xmlx"
+	"github.com/cplieger/go/xmlx"
 )
 
 // fixtureServer serves canned JSON per path prefix and records requests.

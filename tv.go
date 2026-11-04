@@ -9,8 +9,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/cplieger/httpx/v5"
-	"github.com/cplieger/xmlx"
+	"github.com/cplieger/go/httpclient"
+	"github.com/cplieger/go/xmlx"
 )
 
 // plexTVBase is the plex.tv API origin. Tests override this per instance
@@ -75,7 +75,7 @@ func NewTV(token Token, opts ...TVOption) *TV {
 		base:  plexTVBase,
 		httpClient: &http.Client{
 			Timeout:       30 * time.Second,
-			CheckRedirect: httpx.RefuseAllRedirects,
+			CheckRedirect: httpclient.RefuseAllRedirects,
 		},
 	}
 	for _, opt := range opts {
@@ -99,17 +99,17 @@ func (t *TV) SharedServers(ctx context.Context, machineIdentifier string) ([]Sha
 
 	resp, err := t.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("plex.tv shared_servers: %w", httpx.LogSafeError(err))
+		return nil, fmt.Errorf("plex.tv shared_servers: %w", httpclient.LogSafeError(err))
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		httpx.DrainClose(resp.Body)
+		httpclient.DrainClose(resp.Body)
 		return nil, &StatusError{Method: http.MethodGet, Path: apiPath, Status: resp.Status, Code: resp.StatusCode}
 	}
-	body, err := httpx.ReadLimitedBody(resp.Body, DefaultMaxBodyBytes)
+	body, err := httpclient.ReadLimitedBody(resp.Body, DefaultMaxBodyBytes)
 	if err != nil {
-		if _, ok := errors.AsType[*httpx.ResponseTooLargeError](err); ok {
+		if _, ok := errors.AsType[*httpclient.ResponseTooLargeError](err); ok {
 			return nil, &ResponseTooLargeError{Path: apiPath, Limit: DefaultMaxBodyBytes}
 		}
 		return nil, fmt.Errorf("plex.tv shared_servers: reading body: %w", err)

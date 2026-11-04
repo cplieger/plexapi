@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cplieger/httpx/v5"
+	"github.com/cplieger/go/httpclient"
 )
 
 // DefaultMaxBodyBytes caps metadata, session, history, and server-info
@@ -53,7 +53,7 @@ type Option func(*options)
 type options struct {
 	httpClient  *http.Client
 	logger      *slog.Logger
-	onRetry     httpx.OnRetry
+	onRetry     httpclient.OnRetry
 	caPEM       []byte
 	timeout     time.Duration
 	attempts    int
@@ -98,7 +98,7 @@ func WithTimeout(d time.Duration) Option {
 
 // WithOnRetry installs a per-retry observability hook (attempt number,
 // request, response, error), forwarded to the underlying round-tripper.
-func WithOnRetry(fn httpx.OnRetry) Option {
+func WithOnRetry(fn httpclient.OnRetry) Option {
 	return func(o *options) { o.onRetry = fn }
 }
 
@@ -144,7 +144,7 @@ type Token string
 // New parses and validates baseURL (http/https scheme, non-empty host) and
 // returns a Client. Unless WithHTTPClient overrides it, the transport is:
 // OS trust store or the pinned CA from WithCACertPEM, a per-attempt
-// response-header timeout, an httpx retry round-tripper (429/502/503/504 +
+// response-header timeout, an httpclient retry round-tripper (429/502/503/504 +
 // transient transport errors, honoring Retry-After), and a refuse-all
 // redirect policy. Construction warns via slog when baseURL is plain http
 // to a non-local host.
@@ -220,7 +220,7 @@ func (c *Client) Token() Token { return c.token }
 // function) so a caller-owned protocol upgrade — a websocket dialer — can
 // enforce the same policy on its own http.Client. Nil when the client was
 // built via WithHTTPClient without a CheckRedirect.
-func (c *Client) RedirectPolicy() httpx.CheckRedirect { return c.httpClient.CheckRedirect }
+func (c *Client) RedirectPolicy() httpclient.CheckRedirect { return c.httpClient.CheckRedirect }
 
 // BaseTransport returns an independent clone of the hardened base transport
 // the client was constructed with — the same CA trust and per-attempt
@@ -241,13 +241,13 @@ func (c *Client) BaseTransport() *http.Transport {
 func newHTTPClient(o *options) (*http.Client, *http.Transport, error) {
 	var base *http.Transport
 	if o.caSet {
-		tr, err := httpx.CATransport(o.caPEM)
+		tr, err := httpclient.CATransport(o.caPEM)
 		if err != nil {
 			return nil, nil, fmt.Errorf("pinning Plex CA: %w", err)
 		}
 		base = tr
 	} else {
-		dt, err := httpx.CloneDefaultTransport()
+		dt, err := httpclient.CloneDefaultTransport()
 		if err != nil {
 			return nil, nil, fmt.Errorf("building base transport: %w", err)
 		}
@@ -255,7 +255,7 @@ func newHTTPClient(o *options) (*http.Client, *http.Transport, error) {
 	}
 	base.ResponseHeaderTimeout = perAttemptHeaderTimeout
 
-	// httpx's TransportConfig.MaxAttempts: 0 means "unset, take the
+	// httpclient's TransportConfig.MaxAttempts: 0 means "unset, take the
 	// default"; WithMaxAttempts's contract is "minimum 1 — 1 disables
 	// retries", so n < 1 maps to -1 (try once) rather than 0, which would
 	// silently restore the default 3.
@@ -264,7 +264,7 @@ func newHTTPClient(o *options) (*http.Client, *http.Transport, error) {
 		attempts = -1
 	}
 
-	return httpx.NewRetryClient(base, httpx.RefuseAllRedirects, httpx.TransportConfig{
+	return httpclient.NewRetry(base, httpclient.RefuseAllRedirects, httpclient.TransportConfig{
 		MaxAttempts: attempts,
 		BaseDelay:   o.baseDelay,
 		OnRetry:     o.onRetry,
@@ -314,7 +314,7 @@ func (c *Client) resolvePath(path string) (string, error) {
 // ErrNotFound, other non-200s to *StatusError; bodies are capped at
 // maxBytes with the overflow reported as *ResponseTooLargeError.
 func (c *Client) do(ctx context.Context, method, path string, maxBytes int64, result any) error {
-	ctx, cancel := httpx.ContextWithDefaultTimeout(ctx, c.timeout)
+	ctx, cancel := httpclient.ContextWithDefaultTimeout(ctx, c.timeout)
 	defer cancel()
 
 	target, err := c.resolvePath(path)
@@ -330,21 +330,21 @@ func (c *Client) do(ctx context.Context, method, path string, maxBytes int64, re
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("plex %s %s: %w", method, path, httpx.LogSafeError(err))
+		return fmt.Errorf("plex %s %s: %w", method, path, httpclient.LogSafeError(err))
 	}
 	defer resp.Body.Close()
 
 	switch {
 	case resp.StatusCode == http.StatusNotFound:
-		httpx.DrainClose(resp.Body)
+		httpclient.DrainClose(resp.Body)
 		return ErrNotFound
 	case resp.StatusCode != http.StatusOK:
-		httpx.DrainClose(resp.Body)
+		httpclient.DrainClose(resp.Body)
 		return &StatusError{Method: method, Path: path, Status: resp.Status, Code: resp.StatusCode}
 	}
 
 	if result == nil {
-		httpx.DrainClose(resp.Body)
+		httpclient.DrainClose(resp.Body)
 		return nil
 	}
 	return c.decodeBody(method, path, resp.Body, maxBytes, result)
