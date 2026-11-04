@@ -1,6 +1,6 @@
 # How plexapi works
 
-This page covers the contract of each plexapi call group, for developers who need the defaults, the read caps, the types and the error classes before they build on it. The generated reference is on [pkg.go.dev](https://pkg.go.dev/github.com/cplieger/plexapi/v2).
+This page covers the contract of each plexapi call group, for developers who need the defaults, the read caps, the types and the error classes before they build on it. The generated reference is on [pkg.go.dev](https://pkg.go.dev/github.com/cplieger/plexapi/v3).
 
 ## Building a client
 

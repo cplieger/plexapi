@@ -98,7 +98,7 @@ func WithTimeout(d time.Duration) Option {
 
 // WithOnRetry installs a per-retry observability hook (attempt number,
 // request, response, error), forwarded to the underlying round-tripper.
-func WithOnRetry(fn httpclient.OnRetry) Option {
+func WithOnRetry(fn func(attempt int, req *http.Request, resp *http.Response, err error)) Option {
 	return func(o *options) { o.onRetry = fn }
 }
 
@@ -220,7 +220,9 @@ func (c *Client) Token() Token { return c.token }
 // function) so a caller-owned protocol upgrade — a websocket dialer — can
 // enforce the same policy on its own http.Client. Nil when the client was
 // built via WithHTTPClient without a CheckRedirect.
-func (c *Client) RedirectPolicy() httpclient.CheckRedirect { return c.httpClient.CheckRedirect }
+func (c *Client) RedirectPolicy() func(req *http.Request, via []*http.Request) error {
+	return c.httpClient.CheckRedirect
+}
 
 // BaseTransport returns an independent clone of the hardened base transport
 // the client was constructed with — the same CA trust and per-attempt
