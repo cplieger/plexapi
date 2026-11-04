@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/cplieger/httpx/v5"
+	"github.com/cplieger/go/httpclient"
 )
 
 // ErrNotFound is returned when Plex answers 404 for an item lookup.
@@ -25,10 +25,10 @@ func (e *StatusError) Error() string {
 	return fmt.Sprintf("plex API %s %s: %s", e.Method, e.Path, e.Status)
 }
 
-var _ httpx.Transient = (*StatusError)(nil)
+var _ httpclient.Transient = (*StatusError)(nil)
 
 // IsTransient reports a 408, a 429 or any 5xx answer, one a later attempt
-// may not repeat, so httpx.IsTransient classifies a *StatusError like a
+// may not repeat, so httpclient.IsTransient classifies a *StatusError like a
 // transient transport error.
 func (e *StatusError) IsTransient() bool {
 	return e.Code == http.StatusRequestTimeout || e.Code == http.StatusTooManyRequests ||
