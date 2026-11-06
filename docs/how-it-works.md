@@ -86,7 +86,7 @@ History, recently-added and updated-since filters write Plex's comparison with o
 
 `SetAudioStream` and `SetSubtitleStream` take a `StreamSelection{PartID, StreamID}`. The two IDs are a struct so they cannot be swapped by mistake. Both are required. Part 0 is not a Plex part, so a zero `StreamSelection` reaches the server and is refused there. `DisableSubtitles(partID)` turns subtitles off.
 
-Plex records a track change against the user whose token sent it, while reads are not user-scoped. To change another user's tracks, use a client from `ForToken` with that user's token.
+Plex stores track selection per user. A track change is recorded against the user whose token sent it, and a change by one user does not alter another user's existing selection. `Metadata` returns the token's own user's selection in `Stream.Selected`, so read or change another user's tracks with a client from `ForToken` holding that user's token. Each `Sessions` item shows the selection of the user playing it, and only the server owner's token can read `Sessions`. Plex sends `selected` and `default` only when they are true, and one part can mark more than one subtitle stream as default.
 
 ## The plex.tv client
 

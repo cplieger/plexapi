@@ -194,8 +194,8 @@ func New(baseURL string, token Token, opts ...Option) (*Client, error) {
 }
 
 // ForToken returns a Client for the same server and transport but a
-// different token — the per-user client for user-scoped writes (Plex
-// records a stream-selection PUT against the requesting token's user).
+// different token — the per-user client for stream selection (see
+// SetAudioStream).
 func (c *Client) ForToken(token Token) *Client {
 	clone := *c
 	clone.token = token

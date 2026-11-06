@@ -125,7 +125,8 @@ func TestMetadataPolymorphic(t *testing.T) {
 			{"ratingKey":"42","type":"episode","title":"Ep","parentIndex":"2","index":5,
 			 "grandparentTitle":"Show","Media":[{"id":1,"Part":[{"id":10,"Stream":[
 				{"id":100,"streamType":2,"languageCode":"eng","selected":true},
-				{"id":101,"streamType":3,"languageCode":"fre","forced":true}]}]}]}]}}`,
+				{"id":101,"streamType":3,"languageCode":"fre","forced":true},
+				{"id":102,"streamType":3,"languageCode":"eng","default":true}]}]}]}]}}`,
 	})
 	it, err := newTestClient(t, srv).Metadata(t.Context(), "42")
 	if err != nil {
@@ -137,6 +138,10 @@ func TestMetadataPolymorphic(t *testing.T) {
 	streams := it.Media[0].Part[0].Stream
 	if !streams[0].IsAudio() || !streams[1].IsSubtitle() || !streams[1].Forced {
 		t.Errorf("streams = %+v", streams)
+	}
+	if streams[0].Default || streams[1].Default || !streams[2].Default {
+		t.Errorf("Default = %v, %v, %v; want false, false, true (Plex omits default when false)",
+			streams[0].Default, streams[1].Default, streams[2].Default)
 	}
 }
 
