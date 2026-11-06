@@ -248,7 +248,10 @@ const (
 // Stream is a single video/audio/subtitle stream on a Part. ID is FlexInt for
 // the reason given on Media. Key is "/library/streams/<id>" for a stream
 // read from a sidecar file and empty for a track inside the media file;
-// Plex names no sidecar's path.
+// Plex names no sidecar's path. Selected is the token's user's selection on a
+// library read, and the playing user's (Item.User) on a session item. Plex
+// sends Selected and Default only when true, and one part can mark several
+// subtitle streams Default.
 type Stream struct {
 	Key                  string     `json:"key"`
 	LanguageCode         string     `json:"languageCode"`
@@ -262,6 +265,7 @@ type Stream struct {
 	StreamType           StreamType `json:"streamType"`
 	Channels             int        `json:"channels"`
 	Selected             bool       `json:"selected"`
+	Default              bool       `json:"default"`
 	Forced               bool       `json:"forced"`
 	HearingImpaired      bool       `json:"hearingImpaired"`
 	VisualImpaired       bool       `json:"visualImpaired"`

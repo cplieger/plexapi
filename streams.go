@@ -24,10 +24,10 @@ type StreamSelection struct {
 
 // SetAudioStream selects the audio stream for a media part.
 //
-// Plex records stream-selection writes against the REQUESTING TOKEN's user
-// (unlike reads, which are not user-scoped): selecting for another user
-// requires that user's token — use ForToken. Mutations are applied at most
-// once (never retried).
+// Plex stores stream selection per user: a write is recorded against the
+// REQUESTING TOKEN's user, and a library read returns the reading token's own
+// selection. Selecting for another user requires that user's token — use
+// ForToken. Mutations are applied at most once (never retried).
 func (c *Client) SetAudioStream(ctx context.Context, sel StreamSelection) error {
 	return c.put(ctx, fmt.Sprintf("/library/parts/%d?audioStreamID=%d&allParts=1", sel.PartID, sel.StreamID))
 }
