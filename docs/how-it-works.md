@@ -43,7 +43,7 @@ Redirect refusal, the CA pin, the retries and the per-attempt timeout belong to 
 
 ## Retries and timeouts
 
-GET requests go through a retry layer from httpclient. It retries 429, 502, 503 and 504 answers and transient network errors with jittered exponential backoff, and it honors `Retry-After` on each of those answers. A PUT is never retried, so a track change or a metadata refresh is sent at most once per call.
+GET requests go through a retry layer from httpclient. It retries 408, 429 and 5xx answers other than 501, 505, 506, 508, 510 and 511, whose answer repeats, and transient network errors with jittered exponential backoff, and it honors `Retry-After` on each of those answers. That is httpclient's one status rule, `IsRetryableStatus`, which `StatusError.IsTransient` also follows. A PUT is never retried, so a track change or a metadata refresh is sent at most once per call.
 
 Each attempt times out after 15 seconds without response headers. That turns a stalled attempt into a retryable error instead of one that hangs the whole sequence. `WithTimeout` applies only when your context has no deadline, and your own deadline is always the budget for the whole call.
 

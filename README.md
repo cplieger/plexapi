@@ -13,7 +13,7 @@ plexapi is built for Go tools that run beside a Plex Media Server, such as expor
 - Typed calls read library items, live sessions, watch history, server statistics and a server's shared users.
 - It sets a user's audio or subtitle track with that user's token, never retried.
 - The token travels only in the `X-Plex-Token` header, and request paths cannot name another host. The built-in transport refuses every redirect.
-- It retries 429, 502, 503 and 504 answers and transient network errors with backoff, honoring `Retry-After`.
+- It retries 408, 429 and 5xx answers other than 501, 505, 506, 508, 510 and 511, whose answer repeats, and transient network errors with backoff, honoring `Retry-After`.
 - Response bodies are capped before decoding.
 - A self-signed server works by pinning its CA, and TLS verification stays on.
 
@@ -101,7 +101,7 @@ Redirect refusal and TLS verification belong to the built-in transport. A client
 
 ## How it handles failures
 
-- GET requests are retried on 429, 502, 503 and 504 and on transient network errors, with jittered exponential backoff that honors `Retry-After`. `WithMaxAttempts(1)` turns retries off.
+- GET requests are retried on 408, 429 and 5xx answers other than 501, 505, 506, 508, 510 and 511, and on transient network errors, with jittered exponential backoff that honors `Retry-After`. `StatusError.IsTransient` reports the same statuses. `WithMaxAttempts(1)` turns retries off.
 - A track change or a metadata refresh is a PUT and is sent at most once, never retried.
 - Each attempt times out after 15 seconds without response headers, which makes a stalled attempt a retryable error. `WithTimeout` sets a per-request limit, 2 minutes by default, that applies only when your context has no deadline. Your deadline always wins.
 - Response bodies are capped before decoding, at 10 MB by default and 40 MB for full section listings. Both are configurable, and a body over the cap returns `*ResponseTooLargeError` instead of a cut-off decode.

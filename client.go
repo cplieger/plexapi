@@ -144,8 +144,9 @@ type Token string
 // New parses and validates baseURL (http/https scheme, non-empty host) and
 // returns a Client. Unless WithHTTPClient overrides it, the transport is:
 // OS trust store or the pinned CA from WithCACertPEM, a per-attempt
-// response-header timeout, an httpclient retry round-tripper (429/502/503/504 +
-// transient transport errors, honoring Retry-After), and a refuse-all
+// response-header timeout, an httpclient retry round-tripper (the statuses
+// [httpclient.IsRetryableStatus] accepts and transient transport errors,
+// honoring Retry-After), and a refuse-all
 // redirect policy. Construction warns via slog when baseURL is plain http
 // to a non-local host.
 func New(baseURL string, token Token, opts ...Option) (*Client, error) {

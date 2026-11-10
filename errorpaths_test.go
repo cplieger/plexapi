@@ -84,21 +84,33 @@ func TestKeyedEndpointsRejectInvalidKeys(t *testing.T) {
 	}
 }
 
+// retryableByStatusRule is the status rule as the defining RFCs (9110, 6585,
+// 2295, 5842, 2774) define the codes: 408 and 429 ask for a later retry, and a
+// 5xx may succeed on one except those that repeat (501 Not Implemented, 505
+// HTTP Version Not Supported, 506 Variant Also Negotiates, 508 Loop Detected,
+// 510 Not Extended, 511 Network Authentication Required).
+func retryableByStatusRule(code int) bool {
+	switch code {
+	case 408, 429:
+		return true
+	case 501, 505, 506, 508, 510, 511:
+		return false
+	}
+	return code >= 500 && code <= 599
+}
+
 func TestStatusErrorTransient(t *testing.T) {
-	transient := []int{408, 429, 500, 501, 502, 503, 504, 599}
-	permanent := []int{399, 400, 401, 404, 407, 409, 428, 430, 499, 600}
-	for _, tc := range []struct {
-		codes []int
-		want  bool
-	}{{transient, true}, {permanent, false}} {
-		for _, code := range tc.codes {
-			t.Run(fmt.Sprint(code), func(t *testing.T) {
-				err := fmt.Errorf("wrapped: %w", &StatusError{Method: http.MethodGet, Path: "/x", Code: code})
-				if got := httpclient.IsTransient(err); got != tc.want {
-					t.Errorf("httpclient.IsTransient(StatusError %d) = %v, want %v", code, got, tc.want)
-				}
-			})
-		}
+	for code := 100; code <= 699; code++ {
+		want := retryableByStatusRule(code)
+		t.Run(fmt.Sprint(code), func(t *testing.T) {
+			e := &StatusError{Method: http.MethodGet, Path: "/x", Code: code}
+			if got := e.IsTransient(); got != want {
+				t.Errorf("IsTransient() = %v, want %v", got, want)
+			}
+			if got := httpclient.IsTransient(fmt.Errorf("wrapped: %w", e)); got != want {
+				t.Errorf("httpclient.IsTransient(StatusError %d) = %v, want %v", code, got, want)
+			}
+		})
 	}
 }
 
