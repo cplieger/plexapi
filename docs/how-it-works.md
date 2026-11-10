@@ -128,6 +128,6 @@ Every `id` on `Media`, `Part` and `Stream` is a `FlexInt`, because `/status/sess
 ## Errors
 
 - `ErrNotFound` is returned when the server answers 404. `IsNotFound(err)` matches it. The plex.tv client returns a `*StatusError` for a 404 instead.
-- `*StatusError` carries `Method`, `Path`, `Status` and `Code` for any other non-200 answer, after retries run out. `IsTransient()` reports a 408, a 429 or any 5xx, which `httpclient.IsTransient` then counts as transient.
+- `*StatusError` carries `Method`, `Path`, `Status` and `Code` for any other non-200 answer, after retries run out. `IsTransient()` reports the statuses the GET retry rule above retries, and `httpclient.IsTransient` gives the same verdict for an error that wraps it.
 - `*ResponseTooLargeError` carries `Path` and `Limit` for a body over its cap.
 - `IsConfigError(err)` reports a 4xx answer other than 408 and 429. That is a configuration or authorization problem that will not fix itself. A false result does not mean the error is transient. `ErrNotFound`, `*ResponseTooLargeError` and a rejected rating key also fail again on a retry.
