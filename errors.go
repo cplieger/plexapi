@@ -3,7 +3,6 @@ package plexapi
 import (
 	"errors"
 	"fmt"
-	"net/http"
 
 	"github.com/cplieger/go/httpclient"
 )
@@ -27,12 +26,12 @@ func (e *StatusError) Error() string {
 
 var _ httpclient.Transient = (*StatusError)(nil)
 
-// IsTransient reports a 408, a 429 or any 5xx answer, one a later attempt
-// may not repeat, so httpclient.IsTransient classifies a *StatusError like a
-// transient transport error.
+// IsTransient reports the answers httpclient's retry rule retries
+// ([httpclient.IsRetryableStatus]): 408, 429 and a 5xx other than 501, 505,
+// 506, 508, 510 and 511, whose answer repeats. httpclient.IsTransient then
+// classifies a *StatusError like a transient transport error.
 func (e *StatusError) IsTransient() bool {
-	return e.Code == http.StatusRequestTimeout || e.Code == http.StatusTooManyRequests ||
-		(e.Code >= 500 && e.Code <= 599)
+	return httpclient.IsRetryableStatus(e.Code)
 }
 
 // IsConfigError reports whether err is a 4xx StatusError that IsTransient

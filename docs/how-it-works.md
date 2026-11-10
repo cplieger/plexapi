@@ -43,7 +43,7 @@ Redirect refusal, the CA pin, the retries and the per-attempt timeout belong to 
 
 ## Retries and timeouts
 
-GET requests go through a retry layer from httpclient. It retries 429, 502, 503 and 504 answers and transient network errors with jittered exponential backoff, and it honors `Retry-After` on each of those answers. A PUT is never retried, so a track change or a metadata refresh is sent at most once per call.
+GET requests go through a retry layer from httpclient. It retries 408, 429 and 5xx answers other than 501, 505, 506, 508, 510 and 511, whose answer repeats, and transient network errors with jittered exponential backoff, and it honors `Retry-After` on each of those answers. That is httpclient's one status rule, `IsRetryableStatus`, which `StatusError.IsTransient` also follows. A PUT is never retried, so a track change or a metadata refresh is sent at most once per call.
 
 Each attempt times out after 15 seconds without response headers. That turns a stalled attempt into a retryable error instead of one that hangs the whole sequence. `WithTimeout` applies only when your context has no deadline, and your own deadline is always the budget for the whole call.
 
@@ -128,6 +128,6 @@ Every `id` on `Media`, `Part` and `Stream` is a `FlexInt`, because `/status/sess
 ## Errors
 
 - `ErrNotFound` is returned when the server answers 404. `IsNotFound(err)` matches it. The plex.tv client returns a `*StatusError` for a 404 instead.
-- `*StatusError` carries `Method`, `Path`, `Status` and `Code` for any other non-200 answer, after retries run out. `IsTransient()` reports a 408, a 429 or any 5xx, which `httpclient.IsTransient` then counts as transient.
+- `*StatusError` carries `Method`, `Path`, `Status` and `Code` for any other non-200 answer, after retries run out. `IsTransient()` reports the statuses the GET retry rule above retries, and `httpclient.IsTransient` gives the same verdict for an error that wraps it.
 - `*ResponseTooLargeError` carries `Path` and `Limit` for a body over its cap.
 - `IsConfigError(err)` reports a 4xx answer other than 408 and 429. That is a configuration or authorization problem that will not fix itself. A false result does not mean the error is transient. `ErrNotFound`, `*ResponseTooLargeError` and a rejected rating key also fail again on a retry.
