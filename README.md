@@ -4,7 +4,7 @@
 
 plexapi lets your Go tool read a Plex Media Server and set each user's audio and subtitle tracks. Its built-in transport keeps the X-Plex-Token on that server.
 
-It saves you writing your own Plex client, which needs the token header, the JSON envelope Plex wraps every answer in, retries and size limits. You supply the token, because it has no sign-in flow. It needs Go 1.27.4 or later, depends on [httpclient](https://github.com/cplieger/go/tree/main/httpclient) and [xmlx](https://github.com/cplieger/go/tree/main/xmlx) by the same author, and is licensed under Apache-2.0.
+It saves you writing your own Plex client, which needs the token header, the JSON envelope Plex wraps every answer in, retries and size limits. You supply the token, because it has no sign-in flow. It depends on [httpclient](https://github.com/cplieger/go/tree/main/httpclient) and [xmlx](https://github.com/cplieger/go/tree/main/xmlx) by the same author and is licensed under Apache-2.0.
 
 ## Why use it
 
