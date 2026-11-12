@@ -3,6 +3,7 @@ package plexapi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -329,6 +330,54 @@ func TestGetRetriesTransient(t *testing.T) {
 	if calls.Load() != 2 {
 		t.Errorf("server saw %d calls, want 2", calls.Load())
 	}
+}
+
+// A GET is retried exactly on the statuses httpclient's one rule accepts, and
+// a PUT is sent once whatever it answers.
+func TestRetriesFollowTheSharedStatusRule(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		calls  int32
+	}{
+		{http.StatusRequestTimeout, 3},
+		{http.StatusTooManyRequests, 3},
+		{http.StatusInternalServerError, 3},
+		{http.StatusInsufficientStorage, 3},
+		{599, 3},
+		{http.StatusBadRequest, 1},
+		{http.StatusNotImplemented, 1},
+		{http.StatusHTTPVersionNotSupported, 1},
+		{http.StatusVariantAlsoNegotiates, 1},
+		{http.StatusLoopDetected, 1},
+		{http.StatusNotExtended, 1},
+		{http.StatusNetworkAuthenticationRequired, 1},
+	} {
+		t.Run(fmt.Sprint(tc.status), func(t *testing.T) {
+			var calls atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls.Add(1)
+				w.WriteHeader(tc.status)
+			}))
+			defer srv.Close()
+			var out MC[map[string]any]
+			_ = newTestClient(t, srv, WithMaxAttempts(3)).Get(t.Context(), "/x", &out)
+			if got := calls.Load(); got != tc.calls {
+				t.Errorf("GET answered %d drew %d calls, want %d", tc.status, got, tc.calls)
+			}
+		})
+	}
+	t.Run("PUT 408", func(t *testing.T) {
+		var calls atomic.Int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			calls.Add(1)
+			w.WriteHeader(http.StatusRequestTimeout)
+		}))
+		defer srv.Close()
+		_ = newTestClient(t, srv, WithMaxAttempts(3)).SetAudioStream(t.Context(), StreamSelection{PartID: 1, StreamID: 2})
+		if got := calls.Load(); got != 1 {
+			t.Errorf("PUT answered 408 drew %d calls, want 1", got)
+		}
+	})
 }
 
 // TestPutNeverRetried pins the mutation contract: a PUT that answers 503 is

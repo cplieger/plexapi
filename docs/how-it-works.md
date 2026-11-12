@@ -1,6 +1,6 @@
 # How plexapi works
 
-This page covers the contract of each plexapi call group, for developers who need the defaults, the read caps, the types and the error classes before they build on it. The generated reference is on [pkg.go.dev](https://pkg.go.dev/github.com/cplieger/plexapi/v2).
+This page covers the contract of each plexapi call group, for developers who need the defaults, the read caps, the types and the error classes before they build on it. The generated reference is on [pkg.go.dev](https://pkg.go.dev/github.com/cplieger/plexapi/v3).
 
 ## Building a client
 
@@ -43,7 +43,7 @@ Redirect refusal, the CA pin, the retries and the per-attempt timeout belong to 
 
 ## Retries and timeouts
 
-GET requests go through a retry layer from httpx. It retries 429, 502, 503 and 504 answers and transient network errors with jittered exponential backoff, and it honors `Retry-After` on each of those answers. A PUT is never retried, so a track change or a metadata refresh is sent at most once per call.
+GET requests go through a retry layer from httpclient. It retries 408, 429 and 5xx answers other than 501, 505, 506, 508, 510 and 511, whose answer repeats, and transient network errors with jittered exponential backoff, and it honors `Retry-After` on each of those answers. That is httpclient's one status rule, `IsRetryableStatus`, which `StatusError.IsTransient` also follows. A PUT is never retried, so a track change or a metadata refresh is sent at most once per call.
 
 Each attempt times out after 15 seconds without response headers. That turns a stalled attempt into a retryable error instead of one that hangs the whole sequence. `WithTimeout` applies only when your context has no deadline, and your own deadline is always the budget for the whole call.
 
@@ -86,7 +86,7 @@ History, recently-added and updated-since filters write Plex's comparison with o
 
 `SetAudioStream` and `SetSubtitleStream` take a `StreamSelection{PartID, StreamID}`. The two IDs are a struct so they cannot be swapped by mistake. Both are required. Part 0 is not a Plex part, so a zero `StreamSelection` reaches the server and is refused there. `DisableSubtitles(partID)` turns subtitles off.
 
-Plex records a track change against the user whose token sent it, while reads are not user-scoped. To change another user's tracks, use a client from `ForToken` with that user's token.
+Plex stores track selection per user. A track change is recorded against the user whose token sent it, and a change by one user does not alter another user's existing selection. `Metadata` returns the token's own user's selection in `Stream.Selected`, so read or change another user's tracks with a client from `ForToken` holding that user's token. Each `Sessions` item shows the selection of the user playing it, and only the server owner's token can read `Sessions`. Plex sends `selected` and `default` only when they are true, and one part can mark more than one subtitle stream as default.
 
 ## The plex.tv client
 
@@ -128,6 +128,6 @@ Every `id` on `Media`, `Part` and `Stream` is a `FlexInt`, because `/status/sess
 ## Errors
 
 - `ErrNotFound` is returned when the server answers 404. `IsNotFound(err)` matches it. The plex.tv client returns a `*StatusError` for a 404 instead.
-- `*StatusError` carries `Method`, `Path`, `Status` and `Code` for any other non-200 answer, after retries run out. `IsTransient()` reports a 408, a 429 or any 5xx, which `httpx.IsTransient` then counts as transient.
+- `*StatusError` carries `Method`, `Path`, `Status` and `Code` for any other non-200 answer, after retries run out. `IsTransient()` reports the statuses the GET retry rule above retries, and `httpclient.IsTransient` gives the same verdict for an error that wraps it.
 - `*ResponseTooLargeError` carries `Path` and `Limit` for a body over its cap.
 - `IsConfigError(err)` reports a 4xx answer other than 408 and 429. That is a configuration or authorization problem that will not fix itself. A false result does not mean the error is transient. `ErrNotFound`, `*ResponseTooLargeError` and a rejected rating key also fail again on a retry.

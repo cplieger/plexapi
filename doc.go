@@ -19,7 +19,8 @@
 //
 // # Resilience model
 //
-// GET requests on the server client retry 429, 502, 503 and 504 answers and
+// GET requests on the server client retry the answers httpclient's status rule
+// accepts (408, 429 and a 5xx other than 501, 505, 506, 508, 510 and 511) and
 // transient transport errors with jittered exponential backoff, honoring
 // Retry-After. A PUT is never retried, so a change is applied at most once per
 // call. Response bodies are size-capped before decode.
